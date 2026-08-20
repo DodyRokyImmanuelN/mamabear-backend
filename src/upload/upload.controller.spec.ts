@@ -5,10 +5,15 @@ import { UploadService } from './upload.service';
 describe('UploadController', () => {
   let controller: UploadController;
 
+  const mockService = {
+    getUploadSignature: jest.fn(),
+    uploadImage: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [UploadController],
-      providers: [UploadService],
+      providers: [{ provide: UploadService, useValue: mockService }],
     }).compile();
 
     controller = module.get<UploadController>(UploadController);

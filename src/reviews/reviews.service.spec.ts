@@ -5,9 +5,14 @@ import { ReviewsRepository } from './reviews.repository';
 describe('ReviewsService', () => {
   let service: ReviewsService;
 
+  const mockRepo = {};
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [ReviewsService, ReviewsRepository],
+      providers: [
+        ReviewsService,
+        { provide: ReviewsRepository, useValue: mockRepo },
+      ],
     }).compile();
 
     service = module.get<ReviewsService>(ReviewsService);

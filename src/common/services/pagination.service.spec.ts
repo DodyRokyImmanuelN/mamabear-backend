@@ -74,7 +74,7 @@ describe('CursorPaginationService', () => {
     ])
 
     await service.paginate(mockModel, dto, {}, {
-      defaultSort: { id: 'desc' },
+      orderDirection: 'desc',
     })
 
     expect(mockModel.findMany).toHaveBeenCalledWith(

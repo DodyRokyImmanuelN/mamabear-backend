@@ -5,10 +5,15 @@ import { DiscountsService } from './discounts.service';
 describe('DiscountsController', () => {
   let controller: DiscountsController;
 
+  const mockService = {
+    create: jest.fn(),
+    remove: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [DiscountsController],
-      providers: [DiscountsService],
+      providers: [{ provide: DiscountsService, useValue: mockService }],
     }).compile();
 
     controller = module.get<DiscountsController>(DiscountsController);

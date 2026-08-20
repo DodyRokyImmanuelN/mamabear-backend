@@ -113,6 +113,7 @@
       "^.+\\.(t|j)s$": "ts-jest"
     },
     "moduleNameMapper": {
+      "^@openrouter/sdk$": "<rootDir>/__mocks__/openrouter-sdk.ts",
       "^@/(.*)$": "<rootDir>/$1"
     },
     "collectCoverageFrom": [

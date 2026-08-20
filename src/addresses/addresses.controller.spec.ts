@@ -5,10 +5,18 @@ import { AddressesService } from './addresses.service';
 describe('AddressesController', () => {
   let controller: AddressesController;
 
+  const mockService = {
+    addMyAddress: jest.fn(),
+    getMyAddresses: jest.fn(),
+    getMyAddress: jest.fn(),
+    updateMyAddress: jest.fn(),
+    deleteMyAddress: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AddressesController],
-      providers: [AddressesService],
+      providers: [{ provide: AddressesService, useValue: mockService }],
     }).compile();
 
     controller = module.get<AddressesController>(AddressesController);

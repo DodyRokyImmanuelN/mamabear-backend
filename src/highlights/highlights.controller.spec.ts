@@ -5,10 +5,18 @@ import { HighlightsService } from './highlights.service';
 describe('HighlightsController', () => {
   let controller: HighlightsController;
 
+  const mockService = {
+    getAllHighlights: jest.fn(),
+    getHighlightById: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    remove: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [HighlightsController],
-      providers: [HighlightsService],
+      providers: [{ provide: HighlightsService, useValue: mockService }],
     }).compile();
 
     controller = module.get<HighlightsController>(HighlightsController);

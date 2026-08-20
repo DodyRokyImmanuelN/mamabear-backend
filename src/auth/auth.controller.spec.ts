@@ -20,6 +20,10 @@ describe('AuthController', () => {
     verifyEmail: jest.fn(),
   };
 
+  const mockRes = {
+    clearCookie: jest.fn(),
+  } as any;
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
@@ -43,9 +47,8 @@ describe('AuthController', () => {
     };
     mockAuthService.login.mockResolvedValue(result);
 
-    const resultResponse = await controller.login(dto);
-    console.log('response : ', resultResponse);
-    expect(service.login).toHaveBeenCalledWith(dto);
+    const resultResponse = await controller.login(dto, mockRes);
+    expect(service.login).toHaveBeenCalledWith(dto, mockRes);
     expect(resultResponse).toEqual(result);
   });
 
@@ -81,8 +84,8 @@ describe('AuthController', () => {
 
     mockAuthService.logout.mockResolvedValue(result);
 
-    const resultResponse = await controller.logout(req);
-    expect(service.logout).toHaveBeenCalledWith(req.sub);
+    const resultResponse = await controller.logout(req as any, mockRes);
+    expect(service.logout).toHaveBeenCalledWith(req.sub, mockRes);
     expect(resultResponse).toEqual(result);
   });
 
