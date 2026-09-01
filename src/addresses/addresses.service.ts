@@ -77,7 +77,7 @@ export class AddressesService {
 
   //Utils
   isMyAddress(userId: string, Address: Address) {
-    if (Address.userId === userId) return false;
+    if (Address.userId !== userId) return false;
     return true;
   }
 }
