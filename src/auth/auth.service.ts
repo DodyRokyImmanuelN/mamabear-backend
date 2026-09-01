@@ -215,7 +215,7 @@ export class AuthService {
 
       if (
         !user.verificationTokenExpiry ||
-        user.verificationTokenExpiry > new Date()
+        user.verificationTokenExpiry < new Date()
       ) {
         this.logger.warn({
           message: 'Email verification with expired token',
@@ -446,7 +446,7 @@ export class AuthService {
         throw new BadRequestException('User not found');
       }
 
-      const resetToken = crypto.randomBytes(16).toString('hex');
+      const resetToken = crypto.randomBytes(32).toString('hex');
       const resetTokenExpiry = new Date(Date.now() + 1000 * 60 * 15);
 
       await this.repo.update(
