@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { DiscountsService } from './discounts.service';
 import { DiscountsRepository } from './discounts.repository';
+import { NotFoundException } from '@nestjs/common';
 
 describe('DiscountsService', () => {
   let service: DiscountsService;
@@ -62,6 +63,15 @@ describe('DiscountsService', () => {
         message: 'Discount 5 deleted successfully',
         data: deletedDiscount,
       });
+    });
+
+    it('throws NotFoundException when the discount does not exist', async () => {
+      const variantId = 999;
+      mockRepo.delete.mockRejectedValue(new Error('Record not found'));
+
+      await expect(service.remove(variantId)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 });

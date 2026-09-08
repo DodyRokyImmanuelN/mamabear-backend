@@ -232,6 +232,18 @@ export class ProductsAdminController {
     return result;
   }
 
+  @Delete(':id/variants/:variantId/discount')
+  async removeDiscount(@Req() req: any, @Param('variantId') variantId: number) {
+    const result = await this.discountsService.remove(variantId);
+    this.activityLogService.log(
+      req.user.sub,
+      'DELETE',
+      'Discount',
+      String(variantId),
+    );
+    return result;
+  }
+
   @Put('variants/:id')
   async updateVariant(
     @Req() req: any,
