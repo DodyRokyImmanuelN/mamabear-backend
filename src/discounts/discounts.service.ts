@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateDiscountDto } from './dto/create-discount.dto';
 import { DiscountsRepository } from './discounts.repository';
 import { ServiceResult } from '@/common/ServiceResult';
@@ -18,11 +18,15 @@ export class DiscountsService {
   }
 
   async remove(id: number): Promise<ServiceResult<Discount>> {
-    const result = await this.repo.delete(id);
-    return {
-      success: true,
-      message: `Discount ${id} deleted successfully`,
-      data: result,
-    };
+    try {
+      const result = await this.repo.delete(id);
+      return {
+        success: true,
+        message: `Discount ${id} deleted successfully`,
+        data: result,
+      };
+    } catch {
+      throw new NotFoundException(`Discount with varianId ${id} not found`);
+    }
   }
 }
