@@ -36,6 +36,7 @@ model User {
   orders                  Order[]
   address                 Address[]
   activityLogs            AdminActivityLog[]
+  chatSessions            ChatSession[]
 }
 
 model Product {
@@ -53,7 +54,7 @@ model Product {
   description       String?
   ingredients       String?
   usageInstructions String?
-  embedding         Unsupported("vector(1024)")?
+  embedding         Unsupported("vector(2048)")?
   cartItems         CartItem[]
   createdAt         DateTime                     @default(now())
   updatedAt         DateTime?                    @updatedAt
@@ -367,4 +368,34 @@ model AdminActivityLog {
     @@index([userId])
     @@index([entity])
     @@index([createdAt])
+}
+
+enum ChatMessageRole {
+  user
+  assistant
+}
+
+model ChatSession {
+  id        String    @id @default(uuid(7)) @db.Uuid
+  userId    String    @db.Uuid
+  title     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages ChatMessage[]
+
+  @@index([userId])
+}
+
+model ChatMessage {
+  id        String          @id @default(uuid(7)) @db.Uuid
+  sessionId String          @db.Uuid
+  role      ChatMessageRole
+  content   String
+  createdAt DateTime        @default(now())
+
+  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
 }
