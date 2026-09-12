@@ -30,6 +30,7 @@ import { AddressesModule } from './addresses/addresses.module';
 import { OrderModule } from './order/order.module';
 import { ReportsModule } from './reports/reports.module';
 import { ActivityLogModule } from './activity-log/activity-log.module';
+import { ChatModule } from './chat/ai-chat.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { ActivityLogModule } from './activity-log/activity-log.module';
     CloudinaryModule,
     SearchModule,
     EmbeddingsModule,
+    ChatModule,
     ProductUtilsModule,
     PaymentModule,
     SettingsModule,
