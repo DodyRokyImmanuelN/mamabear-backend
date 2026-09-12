@@ -1,3 +1,3 @@
 -- AlterTable
 CREATE EXTENSION IF NOT EXISTS vector;
-ALTER TABLE "Product" ADD COLUMN "embedding" vector(1024);
+ALTER TABLE "Product" ADD COLUMN "embedding" vector(2048);
