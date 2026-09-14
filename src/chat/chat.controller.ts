@@ -1,4 +1,4 @@
-import { Body, Controller, ForbiddenException, Logger, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, Logger, NotFoundException, Param, Post, UseGuards } from '@nestjs/common';
 
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '@/auth/guard/jwt-auth.guard';
@@ -31,14 +31,18 @@ export class ChatController {
         },
     })
     @Post()
-
     async sendMessage(@GetUserId() userId: string, @Body() dto: SendChatMessageDto) {
         let session = dto.sessionId
             ? await this.prisma.chatSession.findUnique({ where: { id: dto.sessionId } })
             : null;
 
-        if (dto.sessionId && (!session || session.userId !== userId)) {
-            throw new ForbiddenException('Sesi chat tidak ditemukan atau bukan milik kamu.');
+        if (dto.sessionId) {
+            if (!session) {
+                throw new NotFoundException('Sesi chat tidak ditemukan.');
+            }
+            if (session.userId !== userId) {
+                throw new ForbiddenException('Sesi chat ini bukan milik kamu.');
+            }
         }
 
         if (!session) {
@@ -57,11 +61,36 @@ export class ChatController {
             answer = 'Maaf, lagi ada kendala teknis. Coba tanya lagi sebentar lagi ya.';
         }
 
-
         await this.prisma.chatMessage.create({
             data: { sessionId: session.id, role: 'assistant', content: answer },
         });
 
         return { message: answer, sessionId: session.id };
+    }
+
+    @ApiOperation({ summary: 'Daftar sesi chat milik user, terbaru dulu' })
+    @Get()
+    async getSessions(@GetUserId() userId: string) {
+        return this.prisma.chatSession.findMany({
+            where: { userId },
+            orderBy: { createdAt: 'desc' },
+        });
+    }
+
+    @ApiOperation({ summary: 'Semua pesan dalam satu sesi chat' })
+    @Get(':sessionId')
+    async getMessages(@GetUserId() userId: string, @Param('sessionId') sessionId: string) {
+        const session = await this.prisma.chatSession.findUnique({ where: { id: sessionId } });
+        if (!session) {
+            throw new NotFoundException('Sesi chat tidak ditemukan.');
+        }
+        if (session.userId !== userId) {
+            throw new ForbiddenException('Sesi chat ini bukan milik kamu.');
+        }
+
+        return this.prisma.chatMessage.findMany({
+            where: { sessionId },
+            orderBy: { createdAt: 'asc' },
+        });
     }
 }

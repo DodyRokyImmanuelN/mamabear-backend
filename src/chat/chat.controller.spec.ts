@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { ChatController } from './chat.controller';
 import { ChatService } from './chat.service';
 import { PrismaService } from '@/prisma/prisma.service';
@@ -72,12 +72,12 @@ describe('ChatController', () => {
     ).rejects.toThrow(ForbiddenException);
   });
 
-  it('throws ForbiddenException when sessionId does not exist', async () => {
+  it('throws NotFoundException when sessionId does not exist', async () => {
     mockPrisma.chatSession.findUnique.mockResolvedValue(null);
 
     await expect(
       controller.sendMessage('user-1', { sessionId: 'missing-session', message: 'halo' }),
-    ).rejects.toThrow(ForbiddenException);
+    ).rejects.toThrow(NotFoundException);
   });
 
   it('falls back to a safe message when generateReply throws', async () => {
