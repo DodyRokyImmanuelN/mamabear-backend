@@ -105,9 +105,16 @@ export class SearchService {
         const vectorString = this.embeddingsService.embeddingArrayToString(queryEmbedding);
 
         const matchedProducts = await this.prisma.$queryRaw`
-            SELECT id, name, slug, embedding <=> ${vectorString}::vector AS distance
-            FROM "Product"
-            WHERE embedding IS NOT NULL
+            SELECT 
+                p.id, 
+                p.name, 
+                p.slug,
+                p.embedding <=> ${vectorString}::vector AS distance,
+                p.description AS deskripsi,
+                pv."priceIdr" AS harga
+            FROM "Product" p
+            JOIN "ProductVariant" pv ON pv."productId" = p.id AND pv."sortOrder" = 0
+            WHERE p.embedding IS NOT NULL
             ORDER BY distance ASC
             LIMIT ${limit}
         `;

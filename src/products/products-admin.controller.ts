@@ -102,6 +102,19 @@ export class ProductsAdminController {
     return result;
   }
 
+    @Post('backfill-embeddings')
+  async backfillEmbeddings(@Req() req: any) {
+    const result = await this.productsService.backfillEmbeddings();
+    if (result.success) {
+      this.activityLogService.log(
+        req.user.sub,
+        'BACKFILL_EMBEDDINGS',
+        'Product',
+      );
+    }
+    return result;
+  }
+
   @Get('export')
   async exportProduct(@Res() res: Response) {
     const result = await this.productsService.exportProducts();
