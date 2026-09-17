@@ -1,4 +1,9 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreatePromoShipmentDto } from './dto/create-promo-shipment.dto';
 import { UpdatePromoShipmentDto } from './dto/update-promo-shipment.dto';
 import { PromoShipmentRepository } from './promo-shipment.repository';
@@ -8,9 +13,9 @@ import { PinoLogger } from 'pino-nestjs';
 export class PromoShipmentService {
   constructor(
     private readonly repo: PromoShipmentRepository,
-    private readonly logger: PinoLogger
+    private readonly logger: PinoLogger,
   ) {
-    this.logger.setContext(PromoShipmentService.name)
+    this.logger.setContext(PromoShipmentService.name);
   }
 
   // admin functions
@@ -24,14 +29,14 @@ export class PromoShipmentService {
         message: 'Promo created successfully',
         endpoint: 'POST /admin/promo-shipment',
         promo: dto,
-        status: 'success'
+        status: 'success',
       });
 
       return {
         success: true,
         message: `Promo ${dto.name} has successfully created`,
-        data: result
-      };  
+        data: result,
+      };
     } catch (error: any) {
       this.logger.error({
         message: 'Cannot create promo',
@@ -40,9 +45,9 @@ export class PromoShipmentService {
         status: 'error',
         error: error.message,
         code: error.code,
-        meta: error.meta
+        meta: error.meta,
       });
-      throw error
+      throw error;
     }
   }
 
@@ -60,9 +65,8 @@ export class PromoShipmentService {
       return {
         success: true,
         message: `Fetched ${result.length} promos`,
-        data: result
+        data: result,
       };
-
     } catch (error: any) {
       this.logger.error({
         message: 'Failed to retrieve promos',
@@ -70,17 +74,18 @@ export class PromoShipmentService {
         status: 'error',
         error: error.message,
         code: error.code,
-        meta: error.meta
+        meta: error.meta,
       });
-      throw error
+      throw error;
     }
   }
 
   async findOne(code: string) {
     try {
       const result = await this.repo.findOneByCode(code);
-      
-      if (!result) throw new NotFoundException(`Not found promo with code ${code}`);
+
+      if (!result)
+        throw new NotFoundException(`Not found promo with code ${code}`);
 
       this.logger.info({
         message: 'Fetched all promos',
@@ -92,25 +97,25 @@ export class PromoShipmentService {
       return {
         success: true,
         message: `Fetched promo with code ${result.code} `,
-        data: result
+        data: result,
       };
-
     } catch (error: any) {
       this.logger.error({
         message: 'Failed to retrieve promo',
         endpoint: `GET /admin/promo-shipment/${code}`,
         status: 'error',
-        error: error.message
+        error: error.message,
       });
-      throw error
+      throw error;
     }
   }
 
   async update(code: string, dto: UpdatePromoShipmentDto) {
     try {
-      const result = await this.repo.update(code, dto)
-      
-      if (!result) throw new BadRequestException(`Cannot update promo with code ${code}`)
+      const result = await this.repo.update(code, dto);
+
+      if (!result)
+        throw new BadRequestException(`Cannot update promo with code ${code}`);
 
       this.logger.info({
         message: 'Promo updated',
@@ -122,9 +127,8 @@ export class PromoShipmentService {
       return {
         success: true,
         message: `Updated promo with code ${result.code}`,
-        data: result
+        data: result,
       };
-
     } catch (error: any) {
       this.logger.error({
         message: 'Failed to update promo',
@@ -132,17 +136,18 @@ export class PromoShipmentService {
         status: 'error',
         error: error.message,
         code: error.code,
-        meta: error.meta
-      })
-      throw error
+        meta: error.meta,
+      });
+      throw error;
     }
   }
 
   async remove(code: string) {
     try {
-      const result = await this.repo.remove(code)
-      
-      if (!result) throw new BadRequestException(`Cannot delete promo with code ${code}`)
+      const result = await this.repo.remove(code);
+
+      if (!result)
+        throw new BadRequestException(`Cannot delete promo with code ${code}`);
 
       this.logger.info({
         message: 'Promo deleted',
@@ -154,9 +159,8 @@ export class PromoShipmentService {
       return {
         success: true,
         message: `Deleted promo with code ${result.code} `,
-        data: result
+        data: result,
       };
-
     } catch (error: any) {
       this.logger.error({
         message: 'Failed to delete promo',
@@ -164,55 +168,56 @@ export class PromoShipmentService {
         status: 'error',
         error: error.message,
         code: error.code,
-        meta: error.meta
-      })
-      throw error
+        meta: error.meta,
+      });
+      throw error;
     }
   }
 
   // user functions
   async checkPromoUsage(userId: string, code: string) {
     try {
-      const promo = await this.repo.findOneByCode(code)
+      const promo = await this.repo.findOneByCode(code);
 
-      if (!promo) throw new NotFoundException('Promo not found')
+      if (!promo) throw new NotFoundException('Promo not found');
 
-      const used = await this.repo.checkPromoUsage(userId, promo.id)
+      const used = await this.repo.checkPromoUsage(userId, promo.id);
 
-      if (used) throw new ConflictException('Promo code has already been used')
-      
+      if (used) throw new ConflictException('Promo code has already been used');
+
       return {
         message: 'Promo is ready to use',
-        promo: promo
-      };  
+        promo: promo,
+      };
     } catch (error) {
-      throw error
+      throw error;
     }
   }
-  
+
   async usePromo(userId: string, promoCode: string) {
     try {
-      const promo = await this.checkPromoUsage(userId, promoCode)
+      const promo = await this.checkPromoUsage(userId, promoCode);
 
-      if (!promo.promo) throw new BadRequestException('Cannot find promo usage')
+      if (!promo.promo)
+        throw new BadRequestException('Cannot find promo usage');
 
-      const result = await this.repo.usePromo(userId, promo.promo.id)
+      const result = await this.repo.usePromo(userId, promo.promo.id);
 
       if (!result) throw new BadRequestException('Cannot use promo.');
 
       this.logger.info({
         message: 'Promo used successfully',
         endpoint: 'POST /promo-shipment',
-        name: promo.name,
-        code: promo.code,
+        name: promo.promo.name,
+        code: promo.promo.code,
         user: userId,
-        status: 'success'
-      })
+        status: 'success',
+      });
 
       return {
         success: true,
-        message: `Promo ${promo.name} with code ${promo.code} has successfully used`,
-        data: result
+        message: `Promo ${promo.promo.name} with code ${promo.promo.code} has successfully used`,
+        data: result,
       };
     } catch (error: any) {
       this.logger.error({
@@ -221,9 +226,9 @@ export class PromoShipmentService {
         status: 'error',
         error: error.message,
         code: error.code,
-        meta: error.meta
-      })
-      throw error
+        meta: error.meta,
+      });
+      throw error;
     }
   }
 }
