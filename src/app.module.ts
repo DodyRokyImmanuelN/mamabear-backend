@@ -31,6 +31,7 @@ import { OrderModule } from './order/order.module';
 import { ReportsModule } from './reports/reports.module';
 import { ActivityLogModule } from './activity-log/activity-log.module';
 import { ChatModule } from './chat/ai-chat.module';
+import { PromoShipmentModule } from './promo-shipment/promo-shipment.module';
 
 @Module({
   imports: [
@@ -69,6 +70,7 @@ import { ChatModule } from './chat/ai-chat.module';
     OrderModule,
     ReportsModule,
     ActivityLogModule,
+    PromoShipmentModule,
   ],
   controllers: [AppController],
   providers: [AppService, CleanupService],

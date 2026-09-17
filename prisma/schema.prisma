@@ -37,6 +37,7 @@ model User {
   address                 Address[]
   activityLogs            AdminActivityLog[]
   chatSessions            ChatSession[]
+  promoUsed               PromoUsage[]
 }
 
 model Product {
@@ -398,4 +399,29 @@ model ChatMessage {
   session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId])
+}
+
+model PromoCode {
+  id             Int          @id @default(autoincrement())
+  code           String       @unique        // uppercase, mis. "GRATIS20"
+  name           String                      // label tampilan, mis. "Promo Akhir Tahun"
+  isPercentage   Boolean                     // penanda untuk menggunakan persentae atau nominal
+  amount         Int                         // NOMINAL Rp, > 0 (mis. 20000)
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  usages         PromoUsage[]
+}
+
+model PromoUsage {
+  id          Int       @id @default(autoincrement())
+  promoCodeId Int
+  promoCode   PromoCode @relation(fields: [promoCodeId], references: [id], onDelete: Cascade)
+  userId      String    @db.Uuid
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderId     String?   @db.Uuid     // string biasa tanpa relasi FK → tabel order tidak tersentuh
+  createdAt   DateTime  @default(now())
+
+  @@unique([promoCodeId, userId])    // enforce atomic: 1 user = 1 kode, 1 kali seumur hidup
+  @@index([userId])
 }
