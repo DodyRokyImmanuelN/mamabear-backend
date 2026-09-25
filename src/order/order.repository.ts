@@ -157,9 +157,9 @@ export class OrderRepository {
     });
   }
   findById(orderId: string) {
-      return this.prisma.order.findUnique({
-          where: { id: orderId },
-      });
+    return this.prisma.order.findUnique({
+      where: { id: orderId },
+    });
   }
 
   handleCompleteOrder(orderId: string) {
@@ -175,8 +175,8 @@ export class OrderRepository {
         throw new UnprocessableEntityException(
           `Cannot process product sold increment: order with orderId=${orderId} does not exist`,
         );
-      if (resolvedOrder.status != OrderStatus.PAYMENT_PENDING)
-          throw new BadRequestException(`Cannot update status of order ${orderId}, order does not have PAYMENT_PENDING status`);
+      if (resolvedOrder.status === OrderStatus.PAYMENT_PAID)
+        throw new BadRequestException(`Order ${orderId} has already been paid`);
       const order = await tx.order.update({
         where: { id: resolvedOrder.id },
         data: { status: OrderStatus.PAYMENT_PAID },
@@ -186,45 +186,31 @@ export class OrderRepository {
         throw new UnprocessableEntityException(
           `Cannot process product sold increment: order with orderId=${orderId} has no order items`,
         );
-      return order.orderItems.forEach(async (item) => {
-        const currentVariant = await tx.productVariant.findUnique({
-          where: {
-            id: item.variantId,
-            productId: item.productId,
-          },
-          select: { stock: true },
-        });
-        if (!currentVariant)
-          throw new BadRequestException(
-            `orderItems forEach: Variant variantId=${item.variantId} of Product productId=${item.productId} does not exist`,
-          );
-        if (currentVariant.stock < item.quantity)
-          throw new BadRequestException(
-            `orderItems forEach: Cannot decrement stock of variantId=${item.variantId} by ${item.quantity} (quantity must be less than ${currentVariant.stock})`,
-          );
-        const product = await tx.product.update({
-          where: {
-            id: item.productId,
-          },
-          data: {
-            totalSold: {
-              increment: item.quantity,
-            },
-          },
-        });
-        const variant = this.prisma.productVariant.update({
-          where: {
-            id: item.variantId,
-            productId: product.id,
-          },
-          data: {
-            stock: {
-              decrement: item.quantity,
-            },
-          },
-        });
-        return variant;
-      });
+      await Promise.all(
+        order.orderItems.map(async (item) => {
+          const currentVariant = await tx.productVariant.findUnique({
+            where: { id: item.variantId, productId: item.productId },
+            select: { stock: true },
+          });
+          if (!currentVariant)
+            throw new BadRequestException(
+              `orderItems: Variant variantId=${item.variantId} of Product productId=${item.productId} does not exist`,
+            );
+          if (currentVariant.stock < item.quantity)
+            throw new BadRequestException(
+              `orderItems: Cannot decrement stock of variantId=${item.variantId} by ${item.quantity} (quantity must be less than ${currentVariant.stock})`,
+            );
+          const product = await tx.product.update({
+            where: { id: item.productId },
+            data: { totalSold: { increment: item.quantity } },
+          });
+          await tx.productVariant.update({
+            where: { id: item.variantId, productId: product.id },
+            data: { stock: { decrement: item.quantity } },
+          });
+        }),
+      );
+      return order;
     });
   }
 
@@ -389,7 +375,10 @@ export class OrderRepository {
     }
 
     if (query.paymentMethod) {
-      where.paymentMethod = { contains: query.paymentMethod, mode: 'insensitive' };
+      where.paymentMethod = {
+        contains: query.paymentMethod,
+        mode: 'insensitive',
+      };
     }
 
     if (query.startDate || query.endDate) {
