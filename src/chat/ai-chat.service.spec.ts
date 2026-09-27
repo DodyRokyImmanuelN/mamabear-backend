@@ -18,31 +18,42 @@ describe('AiChatService', () => {
     expect(() => new AiChatService()).toThrow('OPENROUTER_API_KEY');
   });
 
-  describe('checkIsMedicalQuestion', () => {
-    it('returns true when the model answers MEDIS', async () => {
+  describe('classifyMessage', () => {
+    it.each([
+      ['MEDIS', 'MEDIS'],
+      ['TOKO', 'TOKO'],
+      ['DILUAR_TOPIK', 'DILUAR_TOPIK'],
+      ['DILUAR TOPIK', 'DILUAR_TOPIK'],
+      ['AMAN', 'AMAN'],
+      ['medis.', 'MEDIS'],
+      ['tidak yakin', 'AMAN'],
+    ])('maps model output %p to %s', async (output, expected) => {
       process.env.OPENROUTER_API_KEY = 'test-key';
       const service = new AiChatService();
       (service as any).openrouter.chat.send.mockResolvedValueOnce({
-        choices: [{ message: { content: 'MEDIS' } }],
+        choices: [{ message: { content: output } }],
       });
 
-      const result = await service.checkIsMedicalQuestion(
-        'aman gak diminum pas hamil?',
+      await expect(service.classifyMessage('pertanyaan')).resolves.toBe(
+        expected,
       );
-      expect(result).toBe(true);
     });
 
-    it('returns false when the model answers AMAN', async () => {
+    it('asks for a short answer without reasoning', async () => {
       process.env.OPENROUTER_API_KEY = 'test-key';
       const service = new AiChatService();
-      (service as any).openrouter.chat.send.mockResolvedValueOnce({
+      const send = (service as any).openrouter.chat.send;
+      send.mockResolvedValueOnce({
         choices: [{ message: { content: 'AMAN' } }],
       });
 
-      const result = await service.checkIsMedicalQuestion(
-        'ada yang rasa coklat gak?',
-      );
-      expect(result).toBe(false);
+      await service.classifyMessage('halo');
+      expect(send).toHaveBeenCalledWith({
+        chatRequest: expect.objectContaining({
+          reasoning: { effort: 'none' },
+          maxTokens: 10,
+        }),
+      });
     });
   });
 
