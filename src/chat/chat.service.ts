@@ -13,7 +13,7 @@ const GENERATION_MODEL = 'nvidia/nemotron-3-super-120b-a12b:free';
 const OFF_TOPIC_REPLY =
   'Maaf Mama, aku cuma bisa bantu soal produk MamaBear untuk ibu hamil dan menyusui ya. Ada yang ingin Mama tanyakan soal produknya?';
 
-function summarizeDescription(description: string, maxLength = 1500): string {
+export function summarizeDescription(description: string, maxLength = 1500): string {
   if (!description) return '';
   const safetyLines = extractSafetyNotes(description);
   let mainText = description.slice(0, maxLength);

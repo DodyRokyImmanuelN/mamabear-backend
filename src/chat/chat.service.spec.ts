@@ -1,4 +1,4 @@
-import { ChatService } from './chat.service';
+import { ChatService, summarizeDescription } from './chat.service';
 
 describe('ChatService.generateReply routing', () => {
   const aiChatService = { classifyMessage: jest.fn(), complete: jest.fn() };
@@ -45,6 +45,16 @@ describe('ChatService.generateReply routing', () => {
     expectNoGeneration();
   });
 
+  it('falls back to the default WhatsApp number when contact_phone is not set', async () => {
+    aiChatService.classifyMessage.mockResolvedValue('MEDIS');
+    settingsService.get.mockImplementationOnce(
+      (_key: string, fallback: string) => fallback,
+    );
+
+    const reply = await service.generateReply('dosisnya berapa?');
+    expect(reply).toContain('phone=628888695757');
+  });
+
   it('answers product questions from the retrieved products', async () => {
     aiChatService.classifyMessage.mockResolvedValue('AMAN');
     searchService.findProductsBySemanticSearch.mockResolvedValue({
@@ -73,6 +83,23 @@ describe('ChatService.generateReply routing', () => {
     );
     expect(reply).toBe(
       'Halo Mama, coba AlmonMix.\n\nREKOMENDASI PRODUK: mamabear-almonmix',
+    );
+  });
+});
+
+describe('summarizeDescription', () => {
+  it('truncates long text at the last space and appends ellipsis', () => {
+    const long = Array(300).fill('kata').join(' ');
+    const res = summarizeDescription(long, 100);
+    expect(res.endsWith('...')).toBe(true);
+    expect(res.length).toBeLessThanOrEqual(103);
+  });
+
+  it('re-appends safety lines that were cut off', () => {
+    const description = `${Array(30).fill('kata').join(' ')}\n\nPeringatan: produk ini berisi alergi kacang.`;
+    const res = summarizeDescription(description, 100);
+    expect(res).toContain(
+      '[Catatan penting: Peringatan: produk ini berisi alergi kacang.]',
     );
   });
 });

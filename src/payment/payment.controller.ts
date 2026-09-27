@@ -1,4 +1,13 @@
-import { Body, Controller, Post, Req, Res, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import { PaymentService } from './payment.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { JwtAuthGuard } from '@/auth/guard/jwt-auth.guard';
@@ -11,18 +20,24 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 @ApiBearerAuth('JwtAuthGuard')
 export class PaymentController {
   constructor(
-      private readonly paymentService: PaymentService,
-      private readonly logger: PinoLogger,
+    private readonly paymentService: PaymentService,
+    private readonly logger: PinoLogger,
   ) {}
-  
+
   @UseGuards(JwtAuthGuard)
   @Post('create')
   createTransaction(@Req() req: any, @Body() dto: CreateTransactionDto) {
-      return this.paymentService.createTransaction(req.user, dto);
+    return this.paymentService.createTransaction(req.user, dto);
   }
   @Post('notification')
   handleNotification(@Body() notification: any) {
-      this.logger.info(`Processing inbound notification: ${notification}`);
-      return this.paymentService.handleNotification(notification);
+    this.logger.info(`Processing inbound notification: ${notification}`);
+    return this.paymentService.handleNotification(notification);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('status/:orderId')
+  syncStatus(@Req() req: any, @Param('orderId') orderId: string) {
+    return this.paymentService.syncOrderStatus(req.user, orderId);
   }
 }
