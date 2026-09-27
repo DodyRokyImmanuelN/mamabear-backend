@@ -39,6 +39,27 @@ describe('AiChatService', () => {
       );
     });
 
+    it('waits at most 15s for the guardrail and 60s for other calls', async () => {
+      process.env.OPENROUTER_API_KEY = 'test-key';
+      const delays: number[] = [];
+      jest.spyOn(global, 'setTimeout').mockImplementation(((
+        _fn: () => void,
+        ms: number,
+      ) => {
+        delays.push(ms);
+        return 0;
+      }) as any);
+      const service = new AiChatService();
+      const send = (service as any).openrouter.chat.send;
+      send.mockResolvedValue({ choices: [{ message: { content: 'AMAN' } }] });
+
+      await service.classifyMessage('halo');
+      await service.complete([{ role: 'user', content: 'test' }], 'some-model');
+
+      expect(delays).toEqual([15_000, 60_000]);
+      jest.restoreAllMocks();
+    });
+
     it('asks for a short answer without reasoning', async () => {
       process.env.OPENROUTER_API_KEY = 'test-key';
       const service = new AiChatService();
@@ -90,14 +111,14 @@ describe('AiChatService', () => {
       Object.assign(new Error(name), { name, statusCode });
     const ok = { choices: [{ message: { content: 'AMAN' } }] };
 
-    // Retry back-off delays fire immediately; the 30s request timeout never fires
+    // Retry back-off delays (1-2s) fire immediately; request timeouts (15s/60s) never fire
     beforeEach(() => {
       process.env.OPENROUTER_API_KEY = 'test-key';
       jest.spyOn(global, 'setTimeout').mockImplementation(((
         fn: () => void,
         ms: number,
       ) => {
-        if (ms < 30_000) fn();
+        if (ms < 10_000) fn();
         return 0;
       }) as any);
     });

@@ -68,6 +68,9 @@ describe('ChatService.generateReply routing', () => {
     });
     const [messages] = aiChatService.complete.mock.calls[0];
     expect(messages[0].content).toContain('ATURAN TOPIK:');
+    expect(messages[0].content).toContain(
+      'kecuali blok produk itu menyebutkannya secara eksplisit',
+    );
     expect(reply).toBe(
       'Halo Mama, coba AlmonMix.\n\nREKOMENDASI PRODUK: mamabear-almonmix',
     );

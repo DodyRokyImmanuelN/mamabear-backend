@@ -39,7 +39,9 @@ export function parseCategory(raw: string): MessageCategory {
   if (normalized.includes('TOKO')) return 'TOKO';
   return 'AMAN';
 }
-const AI_REQUEST_TIMEOUT_MS = 30_000;
+// Generation occasionally needs more than 30s on the free tier; the one-word guardrail never should
+const AI_REQUEST_TIMEOUT_MS = 60_000;
+const GUARDRAIL_TIMEOUT_MS = 15_000;
 
 const MAX_AI_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 1_000;
@@ -54,6 +56,7 @@ function isTransientAiError(err: unknown): boolean {
 type CompletionOptions = {
   reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high';
   maxTokens?: number;
+  timeoutMs?: number;
 };
 
 @Injectable()
@@ -76,14 +79,17 @@ export class AiChatService {
     model: string,
     options: CompletionOptions = {},
   ): Promise<string> {
-    const result = await this.sendWithRetry({
-      model,
-      messages,
-      ...(options.reasoningEffort && {
-        reasoning: { effort: options.reasoningEffort },
-      }),
-      ...(options.maxTokens && { maxTokens: options.maxTokens }),
-    });
+    const result = await this.sendWithRetry(
+      {
+        model,
+        messages,
+        ...(options.reasoningEffort && {
+          reasoning: { effort: options.reasoningEffort },
+        }),
+        ...(options.maxTokens && { maxTokens: options.maxTokens }),
+      },
+      options.timeoutMs ?? AI_REQUEST_TIMEOUT_MS,
+    );
 
     const answer = result.choices[0].message.content;
     if (typeof answer !== 'string') {
@@ -96,6 +102,7 @@ export class AiChatService {
 
   private async sendWithRetry(
     chatRequest: Parameters<OpenRouter['chat']['send']>[0]['chatRequest'],
+    timeoutMs: number,
   ) {
     for (let attempt = 1; ; attempt++) {
       try {
@@ -103,7 +110,7 @@ export class AiChatService {
           this.openrouter.chat.send({
             chatRequest: { ...chatRequest, stream: false },
           }),
-          AI_REQUEST_TIMEOUT_MS,
+          timeoutMs,
         );
       } catch (err) {
         if (attempt >= MAX_AI_ATTEMPTS || !isTransientAiError(err)) throw err;
@@ -121,7 +128,11 @@ export class AiChatService {
         { role: 'user', content: message },
       ],
       GUARDRAIL_MODEL,
-      { reasoningEffort: 'none', maxTokens: 10 },
+      {
+        reasoningEffort: 'none',
+        maxTokens: 10,
+        timeoutMs: GUARDRAIL_TIMEOUT_MS,
+      },
     );
     return parseCategory(answer);
   }

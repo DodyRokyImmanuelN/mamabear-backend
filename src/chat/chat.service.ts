@@ -96,6 +96,7 @@ export class ChatService {
       '- Setiap produk ditulis dalam blok [PRODUK n] ... [AKHIR PRODUK n].',
       '- Setiap fakta tentang sebuah produk (manfaat, kandungan, catatan keamanan, harga) HANYA boleh diambil dari blok produk itu sendiri. Jangan mencampur informasi antar produk.',
       '- Kalau sebuah informasi tidak tertulis di blok produk tersebut, jangan menyimpulkan atau menebaknya.',
+      '- Jangan menyatakan sebuah produk cocok atau aman untuk ibu hamil (atau kondisi lain) kecuali blok produk itu menyebutkannya secara eksplisit. Kalau tidak disebutkan, katakan bahwa informasinya tidak tercantum dan sarankan Mama bertanya ke admin.',
       '- Setiap blok punya baris "catatan keamanan". Kalau isinya "tidak ada", produk itu tidak punya catatan keamanan: jangan pernah menulis catatan keamanan untuk produk itu.',
       '- Kalau catatan keamanannya ada, selalu sebutkan saat membahas produk tersebut.',
       '- Tulis catatan keamanan per produk dengan menyebut nama produknya. Jangan menggabungkannya dengan kata "keduanya" atau "semua produk".',
