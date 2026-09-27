@@ -1,7 +1,9 @@
 import { Body, Controller, ForbiddenException, Get, Logger, NotFoundException, Param, Post, UseGuards } from '@nestjs/common';
 
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '@/auth/guard/jwt-auth.guard';
+import { UserThrottlerGuard } from '@/common/guards/user-throttler.guard';
 import { GetUserId } from '@/common/decorators/get-user-id-decorator';
 import { PrismaService } from '@/prisma/prisma.service';
 import { ChatService } from './chat.service';
@@ -29,6 +31,12 @@ export class ChatController {
                 data: { message: 'Ya, MamaBear punya minuman bubuk...', sessionId: '01a09b8a-88c8-74f9-ba8a-7536f1610d80' },
             },
         },
+    })
+    @ApiResponse({ status: 429, description: 'Terlalu banyak pesan (10/menit atau 100/hari per user)' })
+    @UseGuards(UserThrottlerGuard)
+    @Throttle({
+        default: { limit: 10, ttl: 60_000 },
+        daily: { limit: 100, ttl: 86_400_000 },
     })
     @Post()
     async sendMessage(@GetUserId() userId: string, @Body() dto: SendChatMessageDto) {
