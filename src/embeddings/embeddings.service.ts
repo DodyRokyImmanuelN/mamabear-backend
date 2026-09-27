@@ -2,6 +2,9 @@ import 'dotenv/config'
 import { Injectable, UnprocessableEntityException } from '@nestjs/common';
 import { OpenRouter } from '@openrouter/sdk';
 import { Product } from '@/generated/prisma';
+import { withTimeout } from '@/common/utils/with-timeout';
+
+const EMBEDDING_TIMEOUT_MS = 15_000;
 
 const weights = {
     name: 1.0,
@@ -14,7 +17,9 @@ const weights = {
 @Injectable()
 export class EmbeddingsService {
     openrouter = new OpenRouter({
-        apiKey: process.env.OPENROUTER_API_KEY
+        apiKey: process.env.OPENROUTER_API_KEY,
+        // SDK default silently retries for up to 1 hour
+        retryConfig: { strategy: 'none' },
     });
     async generateEmbeddingsFromProduct(product: Product) {
         var sumOfEmbeds : number[] = await this.generateEmbeddingFromString(product.name);
@@ -52,13 +57,13 @@ export class EmbeddingsService {
     }
 
     async generateEmbeddingFromString(str: string) {
-        var nameEmbedding : any = await this.openrouter.embeddings.generate({
+        var nameEmbedding : any = await withTimeout(this.openrouter.embeddings.generate({
             requestBody: {
                 model: "nvidia/nemotron-3-embed-1b:free",
                 input: str,
                 encodingFormat: "float"
             }
-        });
+        }), EMBEDDING_TIMEOUT_MS);
         return (nameEmbedding.data[0].embedding as number[]);
     }
 }
