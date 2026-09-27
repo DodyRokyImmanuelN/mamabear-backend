@@ -26,7 +26,9 @@ describe('AiChatService', () => {
         choices: [{ message: { content: 'MEDIS' } }],
       });
 
-      const result = await service.checkIsMedicalQuestion('aman gak diminum pas hamil?');
+      const result = await service.checkIsMedicalQuestion(
+        'aman gak diminum pas hamil?',
+      );
       expect(result).toBe(true);
     });
 
@@ -37,7 +39,9 @@ describe('AiChatService', () => {
         choices: [{ message: { content: 'AMAN' } }],
       });
 
-      const result = await service.checkIsMedicalQuestion('ada yang rasa coklat gak?');
+      const result = await service.checkIsMedicalQuestion(
+        'ada yang rasa coklat gak?',
+      );
       expect(result).toBe(false);
     });
   });
@@ -67,6 +71,80 @@ describe('AiChatService', () => {
       await expect(
         service.complete([{ role: 'user', content: 'test' }], 'some-model'),
       ).rejects.toThrow();
+    });
+  });
+
+  describe('retry on transient provider errors', () => {
+    const sdkError = (name: string, statusCode?: number) =>
+      Object.assign(new Error(name), { name, statusCode });
+    const ok = { choices: [{ message: { content: 'AMAN' } }] };
+
+    // Retry back-off delays fire immediately; the 30s request timeout never fires
+    beforeEach(() => {
+      process.env.OPENROUTER_API_KEY = 'test-key';
+      jest.spyOn(global, 'setTimeout').mockImplementation(((
+        fn: () => void,
+        ms: number,
+      ) => {
+        if (ms < 30_000) fn();
+        return 0;
+      }) as any);
+    });
+
+    afterEach(() => jest.restoreAllMocks());
+
+    it.each([
+      [
+        'provider overload (ResponseValidationError)',
+        sdkError('ResponseValidationError'),
+      ],
+      ['server error (5xx)', sdkError('OpenRouterError', 503)],
+    ])('retries after a %s and returns the answer', async (_label, error) => {
+      const service = new AiChatService();
+      const send = (service as any).openrouter.chat.send;
+      send.mockRejectedValueOnce(error).mockResolvedValueOnce(ok);
+
+      await expect(
+        service.complete([{ role: 'user', content: 'test' }], 'some-model'),
+      ).resolves.toBe('AMAN');
+      expect(send).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not retry when the daily quota is exhausted (429)', async () => {
+      const service = new AiChatService();
+      const send = (service as any).openrouter.chat.send;
+      send.mockRejectedValueOnce(sdkError('TooManyRequestsResponseError', 429));
+
+      await expect(
+        service.complete([{ role: 'user', content: 'test' }], 'some-model'),
+      ).rejects.toThrow();
+      expect(send).toHaveBeenCalledTimes(1);
+    });
+
+    it('gives up after 3 attempts', async () => {
+      const service = new AiChatService();
+      const send = (service as any).openrouter.chat.send;
+      send.mockRejectedValue(sdkError('ResponseValidationError'));
+
+      await expect(
+        service.complete([{ role: 'user', content: 'test' }], 'some-model'),
+      ).rejects.toThrow();
+      expect(send).toHaveBeenCalledTimes(3);
+    });
+
+    it('stops waiting after the timeout without retrying', async () => {
+      jest.spyOn(global, 'setTimeout').mockImplementation(((fn: () => void) => {
+        fn();
+        return 0;
+      }) as any);
+      const service = new AiChatService();
+      const send = (service as any).openrouter.chat.send;
+      send.mockReturnValue(new Promise(() => {}));
+
+      await expect(
+        service.complete([{ role: 'user', content: 'test' }], 'some-model'),
+      ).rejects.toMatchObject({ name: 'AiTimeoutError' });
+      expect(send).toHaveBeenCalledTimes(1);
     });
   });
 });
