@@ -18,7 +18,7 @@ const SAFETY_KEYWORDS = [
 const RECOMMENDATION_LINE_PATTERN = /^REKOMENDASI\s+PRODUK:[ \t]*([^\n]*)$/m;
 const MAX_RECOMMENDATIONS = 3;
 
-function summarizeDescription(description: string, maxLength = 1500): string {
+export function summarizeDescription(description: string, maxLength = 1500): string {
   if (!description) return '';
 
   const lines = description
