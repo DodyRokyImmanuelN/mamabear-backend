@@ -112,7 +112,7 @@ export class PaymentService {
       // transaksi belum pernah dibuat (404): biarkan order apa adanya
       if (error?.httpStatusCode === 404 || error?.statusCode === '404') {
         return {
-          success: true,
+          success: false,
           message: 'Transaksi belum ditemukan',
           data: await this.orderRepository.findById(orderId),
         };
