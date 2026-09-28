@@ -102,6 +102,18 @@ describe('AiChatService', () => {
         await expect(service.checkIsMedicalQuestion('ada produk pelancar ASI?')).resolves.toBe(false);
       },
     );
+
+     it.each(['TOKO', 'DILUAR_TOPIK', '', '   '])(
+      'returns false when model answers other category or empty string %p',
+      async (content) => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        const service = new AiChatService();
+        (service as any).openrouter.chat.send.mockResolvedValueOnce({
+          choices: [{ message: { content } }],
+        });
+        await expect(service.checkIsMedicalQuestion('pertanyaan umum')).resolves.toBe(false);
+      },
+    );
   });
 
 
