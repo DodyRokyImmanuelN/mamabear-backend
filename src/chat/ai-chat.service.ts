@@ -136,4 +136,9 @@ export class AiChatService {
     );
     return parseCategory(answer);
   }
+
+  async checkIsMedicalQuestion(message: string): Promise<boolean> {
+    const category = await this.classifyMessage(message);
+    return category === 'MEDIS';
+  }
 }

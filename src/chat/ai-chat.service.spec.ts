@@ -78,6 +78,33 @@ describe('AiChatService', () => {
     });
   });
 
+    describe('checkIsMedicalQuestion', () => {
+    it.each(['MEDIS', 'medis', ' MEDIS ', 'Hmm, Medis?', 'Klasifikasi: MEDIS.'])(
+      'returns true when model answers %p',
+      async (content) => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        const service = new AiChatService();
+        (service as any).openrouter.chat.send.mockResolvedValueOnce({
+          choices: [{ message: { content } }],
+        });
+        await expect(service.checkIsMedicalQuestion('ada yang tercampur obat?')).resolves.toBe(true);
+      },
+    );
+
+    it.each(['AMAN', 'aman', 'Aman.', 'Saya tidak yakin'])(
+      'returns false when model answers %p',
+      async (content) => {
+        process.env.OPENROUTER_API_KEY = 'test-key';
+        const service = new AiChatService();
+        (service as any).openrouter.chat.send.mockResolvedValueOnce({
+          choices: [{ message: { content } }],
+        });
+        await expect(service.checkIsMedicalQuestion('ada produk pelancar ASI?')).resolves.toBe(false);
+      },
+    );
+  });
+
+
   describe('complete', () => {
     it('returns the content string from the model response', async () => {
       process.env.OPENROUTER_API_KEY = 'test-key';
