@@ -3,6 +3,7 @@ import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { ChatController } from './chat.controller';
 import { ChatService } from './chat.service';
 import { PrismaService } from '@/prisma/prisma.service';
+import { UserThrottlerGuard } from '@/common/guards/user-throttler.guard';
 
 describe('ChatController', () => {
   let controller: ChatController;
@@ -29,7 +30,10 @@ describe('ChatController', () => {
         { provide: ChatService, useValue: mockChatService },
         { provide: PrismaService, useValue: mockPrisma },
       ],
-    }).compile();
+    })
+      .overrideGuard(UserThrottlerGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     controller = module.get<ChatController>(ChatController);
   });

@@ -1,110 +1,105 @@
 import { ChatService, summarizeDescription } from './chat.service';
 
-describe('ChatService', () => {
-  let service: ChatService;
-  let mockAi: { checkIsMedicalQuestion: jest.Mock; complete: jest.Mock };
-  let mockSearch: { findProductsBySemanticSearch: jest.Mock };
-  let mockSettings: { get: jest.Mock };
+describe('ChatService.generateReply routing', () => {
+  const aiChatService = { classifyMessage: jest.fn(), complete: jest.fn() };
+  const searchService = { findProductsBySemanticSearch: jest.fn() };
+  const settingsService = {
+    get: jest.fn().mockReturnValue('+62 812-3456-7890'),
+  };
+  const service = new ChatService(
+    aiChatService as any,
+    searchService as any,
+    settingsService as any,
+  );
 
-  beforeEach(() => {
-    mockAi = { checkIsMedicalQuestion: jest.fn(), complete: jest.fn() };
-    mockSearch = { findProductsBySemanticSearch: jest.fn() };
-    mockSettings = { get: jest.fn() };
-    service = new ChatService(mockAi as any, mockSearch as any, mockSettings as any);
+  beforeEach(() => jest.clearAllMocks());
+
+  const expectNoGeneration = () => {
+    expect(searchService.findProductsBySemanticSearch).not.toHaveBeenCalled();
+    expect(aiChatService.complete).not.toHaveBeenCalled();
+  };
+
+  it('redirects medical questions to WhatsApp without generating an answer', async () => {
+    aiChatService.classifyMessage.mockResolvedValue('MEDIS');
+
+    const reply = await service.generateReply('boleh diminum pas minum obat?');
+    expect(reply).toContain('pertanyaan seputar kesehatan');
+    expect(reply).toContain('phone=6281234567890');
+    expectNoGeneration();
   });
 
-  describe('generateReply', () => {
-    it('returns WA redirect template when question is medical', async () => {
-      mockAi.checkIsMedicalQuestion.mockResolvedValue(true);
-      mockSettings.get.mockImplementation((key: string, def: unknown) => String(def));
+  it('redirects store questions to the WhatsApp admin without generating an answer', async () => {
+    aiChatService.classifyMessage.mockResolvedValue('TOKO');
 
-      const reply = await service.generateReply('aman gak diminum pas hamil?');
-
-      expect(mockAi.checkIsMedicalQuestion).toHaveBeenCalledWith('aman gak diminum pas hamil?');
-      expect(reply).toMatch(/^Maaf, untuk pertanyaan seputar kesehatan/);
-      expect(reply).toContain('https://api.whatsapp.com/send/?phone=628888695757');
-      expect(mockSearch.findProductsBySemanticSearch).not.toHaveBeenCalled();
-      expect(mockAi.complete).not.toHaveBeenCalled();
-    });
-
-    it('uses the contact_phone setting for the WA link (sanitized)', async () => {
-      mockAi.checkIsMedicalQuestion.mockResolvedValue(true);
-      mockSettings.get.mockImplementation((key: string, def: unknown) =>
-        key === 'contact_phone' ? '+62 811-222-3333' : def,
-      );
-
-      const reply = await service.generateReply('dosisnya berapa?');
-
-      expect(reply).toContain('phone=628112223333');
-    });
-
-    it('builds product context and calls complete when not medical', async () => {
-      mockAi.checkIsMedicalQuestion.mockResolvedValue(false);
-      mockSearch.findProductsBySemanticSearch.mockResolvedValue({
-        data: [{ slug: 'alg-bar', name: 'AlmonMix', harga: '150000', deskripsi: 'kaya nutrisi untuk ibu menyusui' }],
-      });
-      mockAi.complete.mockResolvedValue('Ini saran Mama.\nREKOMENDASI PRODUK: alg-bar');
-
-      const reply = await service.generateReply('ada pelancar ASI?');
-
-      expect(mockAi.complete).toHaveBeenCalledWith(
-        [
-          expect.objectContaining({ role: 'system', content: expect.stringContaining('alg-bar') }),
-          { role: 'user', content: 'ada pelancar ASI?' },
-        ],
-        expect.any(String),
-      );
-      expect(reply).toContain('REKOMENDASI PRODUK: alg-bar');
-    });
+    const reply = await service.generateReply('ongkir ke Surabaya berapa?');
+    expect(reply).toContain('admin MamaBear');
+    expect(reply).toContain('phone=6281234567890');
+    expectNoGeneration();
   });
 
-  describe('validateRecommendationFooter', () => {
-    const products = [{ slug: 'alg-bar' }, { slug: 'zoy-mix' }, { slug: 'teh-asi' }, { slug: 'kukis-oat' }];
-    const validate = (answer: string) => (service as any).validateRecommendationFooter(answer, products);
+  it('declines off-topic requests without generating an answer', async () => {
+    aiChatService.classifyMessage.mockResolvedValue('DILUAR_TOPIK');
 
-    it('returns the answer unchanged when there is no footer', () => {
-      const answer = 'Terima kasih sudah bertanya, Mama.';
-      expect(validate(answer)).toBe(answer);
-    });
-
-    it('keeps the footer when all slugs are allowed', () => {
-      const answer = 'Coba ini.\nREKOMENDASI PRODUK: alg-bar, zoy-mix';
-      expect(validate(answer)).toBe('Coba ini.\nREKOMENDASI PRODUK: alg-bar, zoy-mix');
-    });
-
-    it('normalizes case, trims and dedupes slugs', () => {
-      const answer = 'Saran.\nREKOMENDASI PRODUK: Alg-Bar, alg-bar ,  ZOY-MIX';
-      expect(validate(answer)).toBe('Saran.\nREKOMENDASI PRODUK: alg-bar, zoy-mix');
-    });
-
-    it('caps the footer at 3 slugs', () => {
-      const answer = 'Banyak.\nREKOMENDASI PRODUK: alg-bar, zoy-mix, teh-asi, kukis-oat';
-      expect(validate(answer)).toBe('Banyak.\nREKOMENDASI PRODUK: alg-bar, zoy-mix, teh-asi');
-    });
-
-    it('removes the footer when no slug is allowed', () => {
-      const answer = 'Saran.\nREKOMENDASI PRODUK: barang-lain, produk-fiktif';
-      expect(validate(answer)).toBe('Saran.');
-    });
-
-    it('keeps only allowed slugs (mixed)', () => {
-      const answer = 'Saran.\nREKOMENDASI PRODUK: barang-lain, zoy-mix, teh-asi, fiktif';
-      expect(validate(answer)).toBe('Saran.\nREKOMENDASI PRODUK: zoy-mix, teh-asi');
-    });
+    const reply = await service.generateReply('buatin puisi dong');
+    expect(reply).toContain('cuma bisa bantu soal produk MamaBear');
+    expectNoGeneration();
   });
 
-  describe('summarizeDescription', () => {
-    it('truncates long text at the last space and appends ellipsis', () => {
-      const long = Array(300).fill('kata').join(' ');
-      const res = summarizeDescription(long, 100);
-      expect(res.endsWith('...')).toBe(true);
-      expect(res.length).toBeLessThanOrEqual(103);
-    });
+  it('falls back to the default WhatsApp number when contact_phone is not set', async () => {
+    aiChatService.classifyMessage.mockResolvedValue('MEDIS');
+    settingsService.get.mockImplementationOnce(
+      (_key: string, fallback: string) => fallback,
+    );
 
-    it('re-appends safety lines that were cut off', () => {
-      const description = `${Array(30).fill('kata').join(' ')}\n\nPeringatan: produk ini berisi alergi kacang.`;
-      const res = summarizeDescription(description, 100);
-      expect(res).toContain('[Catatan penting: Peringatan: produk ini berisi alergi kacang.]');
+    const reply = await service.generateReply('dosisnya berapa?');
+    expect(reply).toContain('phone=628888695757');
+  });
+
+  it('answers product questions from the retrieved products', async () => {
+    aiChatService.classifyMessage.mockResolvedValue('AMAN');
+    searchService.findProductsBySemanticSearch.mockResolvedValue({
+      data: [
+        {
+          slug: 'mamabear-almonmix',
+          name: 'AlmonMix',
+          harga: 80000,
+          deskripsi: 'Minuman almond',
+        },
+      ],
     });
+    aiChatService.complete.mockResolvedValue(
+      'Halo Mama, coba AlmonMix.\n\n**Rekomendasi produk:** mamabear-almonmix',
+    );
+
+    const reply = await service.generateReply('ada pelancar ASI?');
+
+    expect(searchService.findProductsBySemanticSearch).toHaveBeenCalledWith({
+      q: 'ada pelancar ASI?',
+    });
+    const [messages] = aiChatService.complete.mock.calls[0];
+    expect(messages[0].content).toContain('ATURAN TOPIK:');
+    expect(messages[0].content).toContain(
+      'kecuali blok produk itu menyebutkannya secara eksplisit',
+    );
+    expect(reply).toBe(
+      'Halo Mama, coba AlmonMix.\n\nREKOMENDASI PRODUK: mamabear-almonmix',
+    );
+  });
+});
+
+describe('summarizeDescription', () => {
+  it('truncates long text at the last space and appends ellipsis', () => {
+    const long = Array(300).fill('kata').join(' ');
+    const res = summarizeDescription(long, 100);
+    expect(res.endsWith('...')).toBe(true);
+    expect(res.length).toBeLessThanOrEqual(103);
+  });
+
+  it('re-appends safety lines that were cut off', () => {
+    const description = `${Array(30).fill('kata').join(' ')}\n\nPeringatan: produk ini berisi alergi kacang.`;
+    const res = summarizeDescription(description, 100);
+    expect(res).toContain(
+      '[Catatan penting: Peringatan: produk ini berisi alergi kacang.]',
+    );
   });
 });

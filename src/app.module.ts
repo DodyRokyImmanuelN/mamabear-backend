@@ -37,8 +37,15 @@ import { PromoShipmentModule } from './promo-shipment/promo-shipment.module';
   imports: [
     ThrottlerModule.forRoot([
       {
+        name: 'default',
         ttl: 60_000,
         limit: 100,
+      },
+      // Deliberately high so other throttled routes are unaffected; POST /chat sets the real daily cap
+      {
+        name: 'daily',
+        ttl: 86_400_000,
+        limit: 10_000,
       },
     ]),
     ConfigModule.forRoot({

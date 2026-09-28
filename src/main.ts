@@ -27,6 +27,15 @@ async function bootstrap() {
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
   app.useLogger(app.get(Logger));
+
+  // A stray rejection from a third-party library must not take the whole server down
+  const logger = app.get(Logger);
+  process.on('unhandledRejection', (reason) => {
+    logger.error(
+      reason instanceof Error ? reason.stack : String(reason),
+      'UnhandledRejection',
+    );
+  });
   app.useGlobalPipes(
     new ValidationPipe({
       transform: true,
