@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { OpenRouter } from '@openrouter/sdk';
 import { withTimeout } from '@/common/utils/with-timeout';
 
@@ -8,7 +8,7 @@ type ChatCompletionMessage = {
   content: string;
 };
 
-const GUARDRAIL_MODEL = 'nvidia/nemotron-3-super-120b-a12b:free';
+export const DEFAULT_GUARDRAIL_MODEL = 'nvidia/nemotron-3-super-120b-a12b:free';
 
 export type MessageCategory = 'MEDIS' | 'TOKO' | 'DILUAR_TOPIK' | 'AMAN';
 
@@ -53,14 +53,22 @@ function isTransientAiError(err: unknown): boolean {
   return typeof status === 'number' && status >= 500;
 }
 
+// 404 "No endpoints found" (model retired) or 400 (unknown model id, e.g. a typo in settings)
+function isModelUnavailableError(err: unknown): boolean {
+  const status = (err as { statusCode?: number } | null)?.statusCode;
+  return status === 404 || status === 400;
+}
+
 type CompletionOptions = {
   reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high';
   maxTokens?: number;
   timeoutMs?: number;
+  fallbackModel?: string;
 };
 
 @Injectable()
 export class AiChatService {
+  private readonly logger = new Logger(AiChatService.name);
   private readonly openrouter: OpenRouter;
 
   constructor() {
@@ -79,17 +87,37 @@ export class AiChatService {
     model: string,
     options: CompletionOptions = {},
   ): Promise<string> {
-    const result = await this.sendWithRetry(
-      {
-        model,
-        messages,
-        ...(options.reasoningEffort && {
-          reasoning: { effort: options.reasoningEffort },
-        }),
-        ...(options.maxTokens && { maxTokens: options.maxTokens }),
-      },
-      options.timeoutMs ?? AI_REQUEST_TIMEOUT_MS,
-    );
+    const timeoutMs = options.timeoutMs ?? AI_REQUEST_TIMEOUT_MS;
+    const request = (modelId: string) =>
+      this.sendWithRetry(
+        {
+          model: modelId,
+          messages,
+          ...(options.reasoningEffort && {
+            reasoning: { effort: options.reasoningEffort },
+          }),
+          ...(options.maxTokens && { maxTokens: options.maxTokens }),
+        },
+        timeoutMs,
+      );
+
+    let result: Awaited<ReturnType<typeof request>>;
+    try {
+      result = await request(model);
+    } catch (err) {
+      const { fallbackModel } = options;
+      if (
+        !fallbackModel ||
+        fallbackModel === model ||
+        !isModelUnavailableError(err)
+      ) {
+        throw err;
+      }
+      this.logger.warn(
+        `Model "${model}" is unavailable, falling back to "${fallbackModel}": ${(err as Error).message}`,
+      );
+      result = await request(fallbackModel);
+    }
 
     const answer = result.choices[0].message.content;
     if (typeof answer !== 'string') {
@@ -121,17 +149,21 @@ export class AiChatService {
     }
   }
 
-  async classifyMessage(message: string): Promise<MessageCategory> {
+  async classifyMessage(
+    message: string,
+    model: string = DEFAULT_GUARDRAIL_MODEL,
+  ): Promise<MessageCategory> {
     const answer = await this.complete(
       [
         { role: 'system', content: GUARDRAIL_PROMPT },
         { role: 'user', content: message },
       ],
-      GUARDRAIL_MODEL,
+      model,
       {
         reasoningEffort: 'none',
         maxTokens: 10,
         timeoutMs: GUARDRAIL_TIMEOUT_MS,
+        fallbackModel: DEFAULT_GUARDRAIL_MODEL,
       },
     );
     return parseCategory(answer);

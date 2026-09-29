@@ -1,18 +1,25 @@
+import { DEFAULT_GUARDRAIL_MODEL } from './ai-chat.service';
 import { ChatService, summarizeDescription } from './chat.service';
 
 describe('ChatService.generateReply routing', () => {
   const aiChatService = { classifyMessage: jest.fn(), complete: jest.fn() };
   const searchService = { findProductsBySemanticSearch: jest.fn() };
-  const settingsService = {
-    get: jest.fn().mockReturnValue('+62 812-3456-7890'),
-  };
+  const settingsService = { get: jest.fn() };
+  const withSettings =
+    (values: Record<string, string>) => (key: string, fallback?: string) =>
+      values[key] ?? fallback;
   const service = new ChatService(
     aiChatService as any,
     searchService as any,
     settingsService as any,
   );
 
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    settingsService.get.mockImplementation(
+      withSettings({ contact_phone: '+62 812-3456-7890' }),
+    );
+  });
 
   const expectNoGeneration = () => {
     expect(searchService.findProductsBySemanticSearch).not.toHaveBeenCalled();
@@ -24,7 +31,7 @@ describe('ChatService.generateReply routing', () => {
 
     const reply = await service.generateReply('boleh diminum pas minum obat?');
     expect(reply).toContain('pertanyaan seputar kesehatan');
-    expect(reply).toContain('phone=6281234567890');
+    expect(reply.endsWith('\n\nKONTAK ADMIN: 6281234567890')).toBe(true);
     expectNoGeneration();
   });
 
@@ -33,7 +40,7 @@ describe('ChatService.generateReply routing', () => {
 
     const reply = await service.generateReply('ongkir ke Surabaya berapa?');
     expect(reply).toContain('admin MamaBear');
-    expect(reply).toContain('phone=6281234567890');
+    expect(reply.endsWith('\n\nKONTAK ADMIN: 6281234567890')).toBe(true);
     expectNoGeneration();
   });
 
@@ -47,12 +54,50 @@ describe('ChatService.generateReply routing', () => {
 
   it('falls back to the default WhatsApp number when contact_phone is not set', async () => {
     aiChatService.classifyMessage.mockResolvedValue('MEDIS');
-    settingsService.get.mockImplementationOnce(
-      (_key: string, fallback: string) => fallback,
-    );
+    settingsService.get.mockImplementation(withSettings({}));
 
     const reply = await service.generateReply('dosisnya berapa?');
-    expect(reply).toContain('phone=628888695757');
+    expect(reply).toContain('KONTAK ADMIN: 628888695757');
+  });
+
+  it('uses the AI models configured in settings', async () => {
+    settingsService.get.mockImplementation(
+      withSettings({
+        ai_guardrail_model: 'custom/guard',
+        ai_generation_model: ' custom/gen ',
+      }),
+    );
+    aiChatService.classifyMessage.mockResolvedValue('AMAN');
+    searchService.findProductsBySemanticSearch.mockResolvedValue({ data: [] });
+    aiChatService.complete.mockResolvedValue('Halo Mama');
+
+    await service.generateReply('halo');
+
+    expect(aiChatService.classifyMessage).toHaveBeenCalledWith(
+      'halo',
+      'custom/guard',
+    );
+    const [, model, options] = aiChatService.complete.mock.calls[0];
+    expect(model).toBe('custom/gen');
+    expect(options.fallbackModel).toEqual(expect.any(String));
+  });
+
+  it('uses the built-in models when the settings are empty or blank', async () => {
+    settingsService.get.mockImplementation(
+      withSettings({ ai_generation_model: '   ' }),
+    );
+    aiChatService.classifyMessage.mockResolvedValue('AMAN');
+    searchService.findProductsBySemanticSearch.mockResolvedValue({ data: [] });
+    aiChatService.complete.mockResolvedValue('Halo Mama');
+
+    await service.generateReply('halo');
+
+    expect(aiChatService.classifyMessage).toHaveBeenCalledWith(
+      'halo',
+      DEFAULT_GUARDRAIL_MODEL,
+    );
+    const [, model, options] = aiChatService.complete.mock.calls[0];
+    expect(model).toBe(options.fallbackModel);
   });
 
   it('answers product questions from the retrieved products', async () => {

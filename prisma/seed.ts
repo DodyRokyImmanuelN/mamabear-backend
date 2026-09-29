@@ -728,6 +728,20 @@ async function main() {
       type: 'boolean',
       description: 'Toggle to maintenance mode (ACTIVE/INACTIVE)',
     },
+    {
+      key: 'ai_guardrail_model',
+      value: 'nvidia/nemotron-3-super-120b-a12b:free',
+      type: 'string',
+      description:
+        'OpenRouter model id for the chatbot guardrail (question classifier). Falls back to the built-in default if unavailable.',
+    },
+    {
+      key: 'ai_generation_model',
+      value: 'nvidia/nemotron-3-super-120b-a12b:free',
+      type: 'string',
+      description:
+        'OpenRouter model id that writes chatbot answers. Falls back to the built-in default if unavailable.',
+    },
   ];
 
   for (const s of defaultSettings) {

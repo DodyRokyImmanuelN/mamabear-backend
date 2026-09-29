@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { AiChatService } from './ai-chat.service';
+import { AiChatService, DEFAULT_GUARDRAIL_MODEL } from './ai-chat.service';
 import { SearchService } from '@/search/search.service';
 import { SettingsService } from '@/settings/settings.service';
 import {
@@ -9,11 +9,19 @@ import {
 } from './utils/reply-formatter';
 import { extractSafetyNotes } from './utils/safety-notes';
 
-const GENERATION_MODEL = 'nvidia/nemotron-3-super-120b-a12b:free';
+const DEFAULT_GENERATION_MODEL = 'nvidia/nemotron-3-super-120b-a12b:free';
+// Admin-editable via PUT /admin/settings/:key; the defaults above are used when unset or unavailable
+const GUARDRAIL_MODEL_SETTING = 'ai_guardrail_model';
+const GENERATION_MODEL_SETTING = 'ai_generation_model';
+// Frontend reads this line to render a WhatsApp button, the same way it reads REKOMENDASI PRODUK
+export const CONTACT_PREFIX = 'KONTAK ADMIN:';
 const OFF_TOPIC_REPLY =
   'Maaf Mama, aku cuma bisa bantu soal produk MamaBear untuk ibu hamil dan menyusui ya. Ada yang ingin Mama tanyakan soal produknya?';
 
-export function summarizeDescription(description: string, maxLength = 1500): string {
+export function summarizeDescription(
+  description: string,
+  maxLength = 1500,
+): string {
   if (!description) return '';
   const safetyLines = extractSafetyNotes(description);
   let mainText = description.slice(0, maxLength);
@@ -41,22 +49,31 @@ export class ChatService {
     private readonly settingsService: SettingsService,
   ) {}
 
-  private getWhatsAppLink(): string {
+  private getModel(settingKey: string, defaultModel: string): string {
+    const configured = this.settingsService.get(settingKey);
+    return typeof configured === 'string' && configured.trim()
+      ? configured.trim()
+      : defaultModel;
+  }
+
+  private getContactLine(): string {
     const rawPhone = this.settingsService.get('contact_phone', '628888695757');
-    const phone = rawPhone.replace(/[^0-9]/g, '');
-    return `https://api.whatsapp.com/send/?phone=${phone}&text&type=phone_number&app_absent=0`;
+    return `${CONTACT_PREFIX} ${rawPhone.replace(/[^0-9]/g, '')}`;
   }
 
   private getMedicalRedirectMessage(): string {
-    return `Maaf, untuk pertanyaan seputar kesehatan seperti ini, aku sarankan konsultasi langsung dengan tim MamaBear ya, biar dapat jawaban yang lebih tepat. Chat kami di sini: ${this.getWhatsAppLink()}`;
+    return `Maaf Mama, untuk pertanyaan seputar kesehatan seperti ini, sebaiknya konsultasi langsung dengan admin MamaBear ya, biar dapat jawaban yang lebih tepat.\n\n${this.getContactLine()}`;
   }
 
   private getStoreRedirectMessage(): string {
-    return `Untuk info soal pesanan, pengiriman, pembayaran, atau promo, Mama bisa langsung tanya admin MamaBear di WhatsApp ya: ${this.getWhatsAppLink()}`;
+    return `Untuk info soal pesanan, pengiriman, pembayaran, atau promo, Mama bisa langsung tanya admin MamaBear ya.\n\n${this.getContactLine()}`;
   }
 
   async generateReply(message: string): Promise<string> {
-    const category = await this.aiChatService.classifyMessage(message);
+    const category = await this.aiChatService.classifyMessage(
+      message,
+      this.getModel(GUARDRAIL_MODEL_SETTING, DEFAULT_GUARDRAIL_MODEL),
+    );
     if (category === 'MEDIS') return this.getMedicalRedirectMessage();
     if (category === 'TOKO') return this.getStoreRedirectMessage();
     if (category === 'DILUAR_TOPIK') return OFF_TOPIC_REPLY;
@@ -124,7 +141,8 @@ export class ChatService {
         { role: 'system', content: systemPrompt },
         { role: 'user', content: message },
       ],
-      GENERATION_MODEL,
+      this.getModel(GENERATION_MODEL_SETTING, DEFAULT_GENERATION_MODEL),
+      { fallbackModel: DEFAULT_GENERATION_MODEL },
     );
 
     return formatReply(
