@@ -125,11 +125,16 @@ describe('ChatService.generateReply routing', () => {
 
     expect(searchService.findProductsBySemanticSearch).toHaveBeenCalledWith({
       q: 'ada pelancar ASI?',
+      limit: 5,
     });
     const [messages] = aiChatService.complete.mock.calls[0];
     expect(messages[0].content).toContain('ATURAN TOPIK:');
     expect(messages[0].content).toContain(
       'kecuali blok produk itu menyebutkannya secara eksplisit',
+    );
+    expect(messages[0].content).toContain('ATURAN MENGGALI KEBUTUHAN:');
+    expect(messages[0].content).toContain(
+      'Tulis cara pakai dan takaran persis seperti di blok produk',
     );
     expect(reply).toBe(
       'Halo Mama, coba AlmonMix.\n\nREKOMENDASI PRODUK: mamabear-almonmix',
@@ -163,6 +168,7 @@ describe('ChatService.generateReply routing', () => {
       await service.generateReply('yang kapsul aja', history);
       expect(searchService.findProductsBySemanticSearch).toHaveBeenCalledWith({
         q: 'ada pelancar ASI?\nyang rasanya enak apa?\nyang kapsul aja',
+        limit: 5,
       });
     });
 
@@ -173,6 +179,7 @@ describe('ChatService.generateReply routing', () => {
       await service.generateReply('sekarang', long);
       expect(searchService.findProductsBySemanticSearch).toHaveBeenCalledWith({
         q: 'u3\nu4\nu5\nsekarang',
+        limit: 5,
       });
     });
 
@@ -193,6 +200,55 @@ describe('ChatService.generateReply routing', () => {
       ]);
       const [messages] = aiChatService.complete.mock.calls[0];
       expect(messages[1].content).toBe(`${'a'.repeat(1000)}...`);
+    });
+  });
+
+  describe('discovery question cap', () => {
+    const MUST_RECOMMEND = 'jangan bertanya lagi';
+    const question = (content: string): ChatHistoryMessage[] => [
+      { role: 'user', content: 'jawaban Mama' },
+      { role: 'assistant', content },
+    ];
+    const systemPromptFor = async (history: ChatHistoryMessage[]) => {
+      await service.generateReply('lanjut', history);
+      return aiChatService.complete.mock.calls[0][0][0].content as string;
+    };
+
+    beforeEach(() => {
+      aiChatService.classifyMessage.mockResolvedValue('AMAN');
+      searchService.findProductsBySemanticSearch.mockResolvedValue({
+        data: [],
+      });
+      aiChatService.complete.mockResolvedValue('Halo Mama');
+    });
+
+    it('lets the model keep asking below the limit', async () => {
+      const history = [
+        ...question('Mama sedang hamil atau menyusui?'),
+        ...question('Mama lebih suka minuman atau kapsul?'),
+      ];
+      expect(await systemPromptFor(history)).not.toContain(MUST_RECOMMEND);
+    });
+
+    it('forces a recommendation after 3 questions', async () => {
+      const history = [
+        ...question('Mama sedang hamil atau menyusui?'),
+        ...question('Mama lebih suka minuman atau kapsul?'),
+        ...question('Mama suka rasa apa?'),
+      ];
+      expect(await systemPromptFor(history)).toContain(MUST_RECOMMEND);
+    });
+
+    it('only counts questions asked since the last recommendation', async () => {
+      const history = [
+        ...question('Mama sedang hamil atau menyusui?'),
+        ...question('Mama lebih suka minuman atau kapsul?'),
+        ...question(
+          'Coba AlmonMix ya.\n\nREKOMENDASI PRODUK: mamabear-almonmix-isi-6-sachet',
+        ),
+        ...question('Ada lagi yang Mama cari?'),
+      ];
+      expect(await systemPromptFor(history)).not.toContain(MUST_RECOMMEND);
     });
   });
 });

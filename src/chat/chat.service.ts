@@ -27,6 +27,21 @@ export const HISTORY_LIMIT = 10;
 // Keeps the prompt (and so latency and quota use) bounded when earlier answers were long
 const HISTORY_MESSAGE_MAX_CHARS = 1000;
 const SEARCH_CONTEXT_USER_MESSAGES = 3;
+// Matches the current catalog size so every product form can be offered while asking about needs
+const PRODUCT_CANDIDATES = 5;
+const MAX_DISCOVERY_QUESTIONS = 3;
+
+// Questions asked since the last recommendation. The cap is enforced in code because the model may ignore it.
+function countDiscoveryQuestions(conversation: ChatHistoryMessage[]): number {
+  let count = 0;
+  for (let i = conversation.length - 1; i >= 0; i--) {
+    const { role, content } = conversation[i];
+    if (role !== 'assistant') continue;
+    if (content.includes(RECOMMENDATION_PREFIX)) break;
+    if (content.includes('?')) count++;
+  }
+  return count;
+}
 
 function prepareHistory(history: ChatHistoryMessage[]): ChatHistoryMessage[] {
   return history
@@ -116,7 +131,10 @@ export class ChatService {
     ].join('\n');
     const searchResult = await this.searchService.findProductsBySemanticSearch({
       q: searchQuery,
+      limit: PRODUCT_CANDIDATES,
     });
+    const mustRecommend =
+      countDiscoveryQuestions(conversation) >= MAX_DISCOVERY_QUESTIONS;
     const products = searchResult.data as any[];
 
     const productContext = products
@@ -149,10 +167,18 @@ export class ChatService {
       '- Setiap produk ditulis dalam blok [PRODUK n] ... [AKHIR PRODUK n].',
       '- Setiap fakta tentang sebuah produk (manfaat, kandungan, catatan keamanan, harga) HANYA boleh diambil dari blok produk itu sendiri. Jangan mencampur informasi antar produk.',
       '- Kalau sebuah informasi tidak tertulis di blok produk tersebut, jangan menyimpulkan atau menebaknya.',
+      '- Tulis cara pakai dan takaran persis seperti di blok produk, jangan diringkas atau diubah angkanya.',
       '- Jangan menyatakan sebuah produk cocok atau aman untuk ibu hamil (atau kondisi lain) kecuali blok produk itu menyebutkannya secara eksplisit. Kalau tidak disebutkan, katakan bahwa informasinya tidak tercantum dan sarankan Mama bertanya ke admin.',
       '- Setiap blok punya baris "catatan keamanan". Kalau isinya "tidak ada", produk itu tidak punya catatan keamanan: jangan pernah menulis catatan keamanan untuk produk itu.',
       '- Kalau catatan keamanannya ada, selalu sebutkan saat membahas produk tersebut.',
       '- Tulis catatan keamanan per produk dengan menyebut nama produknya. Jangan menggabungkannya dengan kata "keduanya" atau "semua produk".',
+      '',
+      'ATURAN MENGGALI KEBUTUHAN:',
+      '- Kalau pertanyaan Mama masih umum dan ada beberapa produk berbeda yang cocok, jangan langsung menjelaskan semua produk. Ajukan SATU pertanyaan singkat dan ramah dulu, dengan pilihan yang diambil dari produk di daftar (misal: "Mama lebih suka yang diminum, teh, atau kapsul?").',
+      '- Prioritas pertanyaan: kalau belum diketahui Mama sedang hamil atau menyusui, dan produk yang cocok berbeda catatan keamanannya, tanyakan itu dulu. Setelah itu baru tanyakan bentuk atau preferensi lain.',
+      '- Biasanya cukup 1-2 pertanyaan. Jangan menanyakan hal yang sudah dijawab Mama di percakapan sebelumnya.',
+      '- Langsung rekomendasikan tanpa bertanya kalau Mama sudah menyebut bentuk produk, nama produk, atau kebutuhan yang jelas, atau kalau Mama menanyakan info spesifik (harga, rasa, cara pakai, perbandingan).',
+      '- Saat masih bertanya, jangan menulis baris rekomendasi produk.',
       '',
       'ATURAN FORMAT:',
       '- Boleh memakai markdown sederhana: teks tebal (**teks**), daftar bernomor atau daftar poin, dan paragraf.',
@@ -167,6 +193,12 @@ export class ChatService {
       `- Maksimal ${MAX_RECOMMENDATIONS} slug, dipisah koma, HANYA slug dari daftar. Tanpa markdown dan tanpa nama produk di baris itu.`,
       '- Kalau user menanyakan link atau cara membeli, katakan bahwa Mama bisa langsung membeli lewat kartu produk di bawah jawaban ini, lalu sertakan slug produknya di baris terakhir. Jangan menyarankan toko atau platform lain.',
       `- Jangan menulis frasa "${RECOMMENDATION_PREFIX}" di bagian lain jawaban.`,
+      ...(mustRecommend
+        ? [
+            '',
+            'PENTING: Mama sudah menjawab beberapa pertanyaan. Sekarang langsung berikan rekomendasi produk yang paling cocok, jangan bertanya lagi.',
+          ]
+        : []),
       '',
       'DAFTAR PRODUK:',
       productContext,
