@@ -15,6 +15,30 @@ const GUARDRAIL_MODEL_SETTING = 'ai_guardrail_model';
 const GENERATION_MODEL_SETTING = 'ai_generation_model';
 // Frontend reads this line to render a WhatsApp button, the same way it reads REKOMENDASI PRODUK
 export const CONTACT_PREFIX = 'KONTAK ADMIN:';
+export const TECHNICAL_ERROR_REPLY =
+  'Maaf, lagi ada kendala teknis. Coba tanya lagi sebentar lagi ya.';
+
+export type ChatHistoryMessage = {
+  role: 'user' | 'assistant';
+  content: string;
+};
+// 5 question-answer exchanges
+export const HISTORY_LIMIT = 10;
+// Keeps the prompt (and so latency and quota use) bounded when earlier answers were long
+const HISTORY_MESSAGE_MAX_CHARS = 1000;
+const SEARCH_CONTEXT_USER_MESSAGES = 3;
+
+function prepareHistory(history: ChatHistoryMessage[]): ChatHistoryMessage[] {
+  return history
+    .filter((m) => m.content !== TECHNICAL_ERROR_REPLY)
+    .map((m) => ({
+      role: m.role,
+      content:
+        m.content.length > HISTORY_MESSAGE_MAX_CHARS
+          ? `${m.content.slice(0, HISTORY_MESSAGE_MAX_CHARS)}...`
+          : m.content,
+    }));
+}
 const OFF_TOPIC_REPLY =
   'Maaf Mama, aku cuma bisa bantu soal produk MamaBear untuk ibu hamil dan menyusui ya. Ada yang ingin Mama tanyakan soal produknya?';
 
@@ -69,7 +93,10 @@ export class ChatService {
     return `Untuk info soal pesanan, pengiriman, pembayaran, atau promo, Mama bisa langsung tanya admin MamaBear ya.\n\n${this.getContactLine()}`;
   }
 
-  async generateReply(message: string): Promise<string> {
+  async generateReply(
+    message: string,
+    history: ChatHistoryMessage[] = [],
+  ): Promise<string> {
     const category = await this.aiChatService.classifyMessage(
       message,
       this.getModel(GUARDRAIL_MODEL_SETTING, DEFAULT_GUARDRAIL_MODEL),
@@ -78,8 +105,17 @@ export class ChatService {
     if (category === 'TOKO') return this.getStoreRedirectMessage();
     if (category === 'DILUAR_TOPIK') return OFF_TOPIC_REPLY;
 
+    const conversation = prepareHistory(history);
+    // Short follow-ups like "yang kapsul aja" only make sense together with the earlier questions
+    const searchQuery = [
+      ...conversation
+        .filter((m) => m.role === 'user')
+        .slice(-SEARCH_CONTEXT_USER_MESSAGES)
+        .map((m) => m.content),
+      message,
+    ].join('\n');
     const searchResult = await this.searchService.findProductsBySemanticSearch({
-      q: message,
+      q: searchQuery,
     });
     const products = searchResult.data as any[];
 
@@ -139,6 +175,7 @@ export class ChatService {
     const answer = await this.aiChatService.complete(
       [
         { role: 'system', content: systemPrompt },
+        ...conversation,
         { role: 'user', content: message },
       ],
       this.getModel(GENERATION_MODEL_SETTING, DEFAULT_GENERATION_MODEL),

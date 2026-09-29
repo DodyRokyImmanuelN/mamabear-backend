@@ -1,5 +1,10 @@
 import { DEFAULT_GUARDRAIL_MODEL } from './ai-chat.service';
-import { ChatService, summarizeDescription } from './chat.service';
+import {
+  ChatHistoryMessage,
+  ChatService,
+  TECHNICAL_ERROR_REPLY,
+  summarizeDescription,
+} from './chat.service';
 
 describe('ChatService.generateReply routing', () => {
   const aiChatService = { classifyMessage: jest.fn(), complete: jest.fn() };
@@ -129,6 +134,66 @@ describe('ChatService.generateReply routing', () => {
     expect(reply).toBe(
       'Halo Mama, coba AlmonMix.\n\nREKOMENDASI PRODUK: mamabear-almonmix',
     );
+  });
+
+  describe('with conversation history', () => {
+    const history: ChatHistoryMessage[] = [
+      { role: 'user', content: 'ada pelancar ASI?' },
+      { role: 'assistant', content: 'Ada AlmonMix dan Teh Pelancar ASI.' },
+      { role: 'user', content: 'yang rasanya enak apa?' },
+      { role: 'assistant', content: TECHNICAL_ERROR_REPLY },
+    ];
+
+    beforeEach(() => {
+      aiChatService.classifyMessage.mockResolvedValue('AMAN');
+      searchService.findProductsBySemanticSearch.mockResolvedValue({
+        data: [],
+      });
+      aiChatService.complete.mockResolvedValue('Halo Mama');
+    });
+
+    it('classifies only the current message', async () => {
+      await service.generateReply('yang kapsul aja', history);
+      expect(aiChatService.classifyMessage.mock.calls[0][0]).toBe(
+        'yang kapsul aja',
+      );
+    });
+
+    it('searches with the recent user messages plus the current one', async () => {
+      await service.generateReply('yang kapsul aja', history);
+      expect(searchService.findProductsBySemanticSearch).toHaveBeenCalledWith({
+        q: 'ada pelancar ASI?\nyang rasanya enak apa?\nyang kapsul aja',
+      });
+    });
+
+    it('uses at most the last 3 user messages for search', async () => {
+      const long = ['u1', 'u2', 'u3', 'u4', 'u5'].map(
+        (content): ChatHistoryMessage => ({ role: 'user', content }),
+      );
+      await service.generateReply('sekarang', long);
+      expect(searchService.findProductsBySemanticSearch).toHaveBeenCalledWith({
+        q: 'u3\nu4\nu5\nsekarang',
+      });
+    });
+
+    it('sends the conversation to the model without technical-error replies', async () => {
+      await service.generateReply('yang kapsul aja', history);
+      const [messages] = aiChatService.complete.mock.calls[0];
+      expect(messages.slice(1)).toEqual([
+        { role: 'user', content: 'ada pelancar ASI?' },
+        { role: 'assistant', content: 'Ada AlmonMix dan Teh Pelancar ASI.' },
+        { role: 'user', content: 'yang rasanya enak apa?' },
+        { role: 'user', content: 'yang kapsul aja' },
+      ]);
+    });
+
+    it('shortens long earlier messages', async () => {
+      await service.generateReply('lanjut', [
+        { role: 'assistant', content: 'a'.repeat(1500) },
+      ]);
+      const [messages] = aiChatService.complete.mock.calls[0];
+      expect(messages[1].content).toBe(`${'a'.repeat(1000)}...`);
+    });
   });
 });
 

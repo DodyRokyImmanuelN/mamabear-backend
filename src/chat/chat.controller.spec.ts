@@ -19,6 +19,7 @@ describe('ChatController', () => {
     },
     chatMessage: {
       create: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
     },
   };
 
@@ -66,6 +67,41 @@ describe('ChatController', () => {
 
     expect(mockPrisma.chatSession.create).not.toHaveBeenCalled();
     expect(result.sessionId).toBe('session-1');
+  });
+
+  it('passes earlier messages of the session to the chat service, oldest first', async () => {
+    mockPrisma.chatSession.findUnique.mockResolvedValue({ id: 'session-1', userId: 'user-1' });
+    mockPrisma.chatMessage.findMany.mockResolvedValueOnce([
+      { role: 'assistant', content: 'Ada AlmonMix dan Teh.' },
+      { role: 'user', content: 'ada pelancar ASI?' },
+    ]);
+    mockPrisma.chatMessage.create.mockResolvedValue({});
+    mockChatService.generateReply.mockResolvedValue('Jawaban bot');
+
+    await controller.sendMessage('user-1', { sessionId: 'session-1', message: 'yang kapsul aja' });
+
+    expect(mockPrisma.chatMessage.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { sessionId: 'session-1' }, take: 10 }),
+    );
+    expect(mockChatService.generateReply).toHaveBeenCalledWith('yang kapsul aja', [
+      { role: 'user', content: 'ada pelancar ASI?' },
+      { role: 'assistant', content: 'Ada AlmonMix dan Teh.' },
+    ]);
+    // History is read before the new message is saved, so it never contains the current message
+    expect(mockPrisma.chatMessage.findMany.mock.invocationCallOrder[0]).toBeLessThan(
+      mockPrisma.chatMessage.create.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('does not load history for a new session', async () => {
+    mockPrisma.chatSession.create.mockResolvedValue({ id: 'new-session-id', userId: 'user-1' });
+    mockPrisma.chatMessage.create.mockResolvedValue({});
+    mockChatService.generateReply.mockResolvedValue('Jawaban bot');
+
+    await controller.sendMessage('user-1', { message: 'halo' });
+
+    expect(mockPrisma.chatMessage.findMany).not.toHaveBeenCalled();
+    expect(mockChatService.generateReply).toHaveBeenCalledWith('halo', []);
   });
 
   it('throws ForbiddenException when sessionId belongs to a different user', async () => {
