@@ -85,6 +85,7 @@ describe('ChatService.generateReply routing', () => {
     const [, model, options] = aiChatService.complete.mock.calls[0];
     expect(model).toBe('custom/gen');
     expect(options.fallbackModel).toEqual(expect.any(String));
+    expect(options.reasoningEffort).toBe('low');
   });
 
   it('uses the built-in models when the settings are empty or blank', async () => {
@@ -135,6 +136,9 @@ describe('ChatService.generateReply routing', () => {
     expect(messages[0].content).toContain('ATURAN MENGGALI KEBUTUHAN:');
     expect(messages[0].content).toContain(
       'Tulis cara pakai dan takaran persis seperti di blok produk',
+    );
+    expect(messages[0].content).toContain(
+      'Saat merekomendasikan atau membandingkan produk, jawab ringkas',
     );
     expect(reply).toBe(
       'Halo Mama, coba AlmonMix.\n\nREKOMENDASI PRODUK: mamabear-almonmix',
