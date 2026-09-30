@@ -6,7 +6,7 @@ import { JwtAuthGuard } from '@/auth/guard/jwt-auth.guard';
 import { UserThrottlerGuard } from '@/common/guards/user-throttler.guard';
 import { GetUserId } from '@/common/decorators/get-user-id-decorator';
 import { PrismaService } from '@/prisma/prisma.service';
-import { ChatService } from './chat.service';
+import { ChatService, HISTORY_LIMIT, TECHNICAL_ERROR_REPLY } from './chat.service';
 import { SendChatMessageDto } from './dto/send-chat-message.dto';
 
 @ApiTags('chat')
@@ -57,16 +57,26 @@ export class ChatController {
             session = await this.prisma.chatSession.create({ data: { userId } });
         }
 
+        // Loaded before saving the new message so the history only holds earlier turns
+        const history = dto.sessionId
+            ? (await this.prisma.chatMessage.findMany({
+                  where: { sessionId: session.id },
+                  orderBy: { createdAt: 'desc' },
+                  take: HISTORY_LIMIT,
+                  select: { role: true, content: true },
+              })).reverse()
+            : [];
+
         await this.prisma.chatMessage.create({
             data: { sessionId: session.id, role: 'user', content: dto.message },
         });
 
         let answer: string;
         try {
-            answer = await this.chatService.generateReply(dto.message);
+            answer = await this.chatService.generateReply(dto.message, history);
         } catch (err) {
             this.logger.error('Failed to generate chat reply', err instanceof Error ? err.stack : err);
-            answer = 'Maaf, lagi ada kendala teknis. Coba tanya lagi sebentar lagi ya.';
+            answer = TECHNICAL_ERROR_REPLY;
         }
 
         await this.prisma.chatMessage.create({

@@ -1,4 +1,5 @@
-import { AiChatService } from './ai-chat.service';
+import { Logger } from '@nestjs/common';
+import { AiChatService, DEFAULT_GUARDRAIL_MODEL } from './ai-chat.service';
 
 describe('AiChatService', () => {
   const originalApiKey = process.env.OPENROUTER_API_KEY;
@@ -216,6 +217,79 @@ describe('AiChatService', () => {
         service.complete([{ role: 'user', content: 'test' }], 'some-model'),
       ).rejects.toMatchObject({ name: 'AiTimeoutError' });
       expect(send).toHaveBeenCalledTimes(1);
+    });
+  });
+  describe('model fallback', () => {
+    const sdkError = (name: string, statusCode: number) =>
+      Object.assign(new Error(name), { name, statusCode });
+    const ok = (content: string) => ({ choices: [{ message: { content } }] });
+    const modelsCalled = (send: jest.Mock) =>
+      send.mock.calls.map(([args]) => args.chatRequest.model);
+    let service: AiChatService;
+    let send: jest.Mock;
+
+    beforeEach(() => {
+      process.env.OPENROUTER_API_KEY = 'test-key';
+      jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
+      service = new AiChatService();
+      send = (service as any).openrouter.chat.send;
+    });
+
+    afterEach(() => jest.restoreAllMocks());
+
+    it.each([
+      ['retired (404)', 404],
+      ['unknown id (400)', 400],
+    ])(
+      'retries once with the fallback model when the model is %s',
+      async (_label, status) => {
+        send
+          .mockRejectedValueOnce(sdkError('OpenRouterError', status))
+          .mockResolvedValueOnce(ok('Halo Mama'));
+
+        await expect(
+          service.complete([{ role: 'user', content: 'test' }], 'bad/model', {
+            fallbackModel: 'default/model',
+          }),
+        ).resolves.toBe('Halo Mama');
+        expect(modelsCalled(send)).toEqual(['bad/model', 'default/model']);
+      },
+    );
+
+    it('does not fall back when the daily quota is exhausted (429)', async () => {
+      send.mockRejectedValueOnce(sdkError('TooManyRequestsResponseError', 429));
+
+      await expect(
+        service.complete([{ role: 'user', content: 'test' }], 'bad/model', {
+          fallbackModel: 'default/model',
+        }),
+      ).rejects.toThrow();
+      expect(modelsCalled(send)).toEqual(['bad/model']);
+    });
+
+    it('does not retry when the model already is the fallback', async () => {
+      send.mockRejectedValueOnce(sdkError('NotFoundResponseError', 404));
+
+      await expect(
+        service.complete([{ role: 'user', content: 'test' }], 'default/model', {
+          fallbackModel: 'default/model',
+        }),
+      ).rejects.toThrow();
+      expect(send).toHaveBeenCalledTimes(1);
+    });
+
+    it('classifies with the given model and falls back to the built-in guardrail model', async () => {
+      send
+        .mockRejectedValueOnce(sdkError('NotFoundResponseError', 404))
+        .mockResolvedValueOnce(ok('TOKO'));
+
+      await expect(
+        service.classifyMessage('ongkir berapa?', 'typo/model'),
+      ).resolves.toBe('TOKO');
+      expect(modelsCalled(send)).toEqual([
+        'typo/model',
+        DEFAULT_GUARDRAIL_MODEL,
+      ]);
     });
   });
 });
