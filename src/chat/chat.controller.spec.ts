@@ -1,0 +1,132 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ChatController } from './chat.controller';
+import { ChatService } from './chat.service';
+import { PrismaService } from '@/prisma/prisma.service';
+import { UserThrottlerGuard } from '@/common/guards/user-throttler.guard';
+
+describe('ChatController', () => {
+  let controller: ChatController;
+
+  const mockChatService = {
+    generateReply: jest.fn(),
+  };
+
+  const mockPrisma = {
+    chatSession: {
+      findUnique: jest.fn(),
+      create: jest.fn(),
+    },
+    chatMessage: {
+      create: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
+    },
+  };
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [ChatController],
+      providers: [
+        { provide: ChatService, useValue: mockChatService },
+        { provide: PrismaService, useValue: mockPrisma },
+      ],
+    })
+      .overrideGuard(UserThrottlerGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
+
+    controller = module.get<ChatController>(ChatController);
+  });
+
+  it('should be defined', () => {
+    expect(controller).toBeDefined();
+  });
+
+  it('creates a new session when sessionId is not provided', async () => {
+    mockPrisma.chatSession.create.mockResolvedValue({ id: 'new-session-id', userId: 'user-1' });
+    mockPrisma.chatMessage.create.mockResolvedValue({});
+    mockChatService.generateReply.mockResolvedValue('Jawaban bot');
+
+    const result = await controller.sendMessage('user-1', { message: 'halo' });
+
+    expect(mockPrisma.chatSession.findUnique).not.toHaveBeenCalled();
+    expect(mockPrisma.chatSession.create).toHaveBeenCalledWith({ data: { userId: 'user-1' } });
+    expect(result).toEqual({ message: 'Jawaban bot', sessionId: 'new-session-id' });
+  });
+
+  it('reuses an existing session when sessionId belongs to the same user', async () => {
+    mockPrisma.chatSession.findUnique.mockResolvedValue({ id: 'session-1', userId: 'user-1' });
+    mockPrisma.chatMessage.create.mockResolvedValue({});
+    mockChatService.generateReply.mockResolvedValue('Jawaban bot');
+
+    const result = await controller.sendMessage('user-1', {
+      sessionId: 'session-1',
+      message: 'lanjutin dong',
+    });
+
+    expect(mockPrisma.chatSession.create).not.toHaveBeenCalled();
+    expect(result.sessionId).toBe('session-1');
+  });
+
+  it('passes earlier messages of the session to the chat service, oldest first', async () => {
+    mockPrisma.chatSession.findUnique.mockResolvedValue({ id: 'session-1', userId: 'user-1' });
+    mockPrisma.chatMessage.findMany.mockResolvedValueOnce([
+      { role: 'assistant', content: 'Ada AlmonMix dan Teh.' },
+      { role: 'user', content: 'ada pelancar ASI?' },
+    ]);
+    mockPrisma.chatMessage.create.mockResolvedValue({});
+    mockChatService.generateReply.mockResolvedValue('Jawaban bot');
+
+    await controller.sendMessage('user-1', { sessionId: 'session-1', message: 'yang kapsul aja' });
+
+    expect(mockPrisma.chatMessage.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { sessionId: 'session-1' }, take: 10 }),
+    );
+    expect(mockChatService.generateReply).toHaveBeenCalledWith('yang kapsul aja', [
+      { role: 'user', content: 'ada pelancar ASI?' },
+      { role: 'assistant', content: 'Ada AlmonMix dan Teh.' },
+    ]);
+    // History is read before the new message is saved, so it never contains the current message
+    expect(mockPrisma.chatMessage.findMany.mock.invocationCallOrder[0]).toBeLessThan(
+      mockPrisma.chatMessage.create.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('does not load history for a new session', async () => {
+    mockPrisma.chatSession.create.mockResolvedValue({ id: 'new-session-id', userId: 'user-1' });
+    mockPrisma.chatMessage.create.mockResolvedValue({});
+    mockChatService.generateReply.mockResolvedValue('Jawaban bot');
+
+    await controller.sendMessage('user-1', { message: 'halo' });
+
+    expect(mockPrisma.chatMessage.findMany).not.toHaveBeenCalled();
+    expect(mockChatService.generateReply).toHaveBeenCalledWith('halo', []);
+  });
+
+  it('throws ForbiddenException when sessionId belongs to a different user', async () => {
+    mockPrisma.chatSession.findUnique.mockResolvedValue({ id: 'session-1', userId: 'other-user' });
+
+    await expect(
+      controller.sendMessage('user-1', { sessionId: 'session-1', message: 'halo' }),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('throws NotFoundException when sessionId does not exist', async () => {
+    mockPrisma.chatSession.findUnique.mockResolvedValue(null);
+
+    await expect(
+      controller.sendMessage('user-1', { sessionId: 'missing-session', message: 'halo' }),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('falls back to a safe message when generateReply throws', async () => {
+    mockPrisma.chatSession.create.mockResolvedValue({ id: 'new-session-id', userId: 'user-1' });
+    mockPrisma.chatMessage.create.mockResolvedValue({});
+    mockChatService.generateReply.mockRejectedValue(new Error('OpenRouter down'));
+
+    const result = await controller.sendMessage('user-1', { message: 'halo' });
+
+    expect(result.message).toContain('kendala teknis');
+  });
+});

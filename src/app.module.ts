@@ -30,13 +30,22 @@ import { AddressesModule } from './addresses/addresses.module';
 import { OrderModule } from './order/order.module';
 import { ReportsModule } from './reports/reports.module';
 import { ActivityLogModule } from './activity-log/activity-log.module';
+import { ChatModule } from './chat/ai-chat.module';
+import { PromoShipmentModule } from './promo-shipment/promo-shipment.module';
 
 @Module({
   imports: [
     ThrottlerModule.forRoot([
       {
+        name: 'default',
         ttl: 60_000,
         limit: 100,
+      },
+      // Deliberately high so other throttled routes are unaffected; POST /chat sets the real daily cap
+      {
+        name: 'daily',
+        ttl: 86_400_000,
+        limit: 10_000,
       },
     ]),
     ConfigModule.forRoot({
@@ -59,6 +68,7 @@ import { ActivityLogModule } from './activity-log/activity-log.module';
     CloudinaryModule,
     SearchModule,
     EmbeddingsModule,
+    ChatModule,
     ProductUtilsModule,
     PaymentModule,
     SettingsModule,
@@ -67,6 +77,7 @@ import { ActivityLogModule } from './activity-log/activity-log.module';
     OrderModule,
     ReportsModule,
     ActivityLogModule,
+    PromoShipmentModule,
   ],
   controllers: [AppController],
   providers: [AppService, CleanupService],

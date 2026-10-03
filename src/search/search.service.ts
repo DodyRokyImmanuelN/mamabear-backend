@@ -7,12 +7,14 @@ import { ServiceResult } from '@/common/ServiceResult';
 import { Sql } from '@prisma/client-runtime-utils';
 import { PRODUCT_INCLUDE, ProductsRepository } from '@/products/products.repository';
 import { ProductUtils } from '@/product-utils/product-utils';
+import { EmbeddingsService } from '@/embeddings/embeddings.service';
 
 @Injectable()
 export class SearchService {
     constructor(
         private readonly prisma: PrismaService,
         private readonly productUtils: ProductUtils,
+        private readonly embeddingsService: EmbeddingsService,
     ) {}
 
     async findProductsMatchingQuery(query: SearchRequestDto): Promise<ServiceResult<any>> {
@@ -93,6 +95,33 @@ export class SearchService {
                 data: enriched,
                 pagination: { limit, nextCursor, hasNextPage: nextCursor !== null },
             },
+        };
+    }
+
+    async findProductsBySemanticSearch(query: SearchRequestDto){
+        const limit = query.limit ?? 3;
+        
+        const queryEmbedding = await this.embeddingsService.generateEmbeddingFromString(query.q);
+        const vectorString = this.embeddingsService.embeddingArrayToString(queryEmbedding);
+
+        const matchedProducts = await this.prisma.$queryRaw`
+            SELECT 
+                p.id, 
+                p.name, 
+                p.slug,
+                p.embedding <=> ${vectorString}::vector AS distance,
+                p.description AS deskripsi,
+                pv."priceIdr" AS harga
+            FROM "Product" p
+            JOIN "ProductVariant" pv ON pv."productId" = p.id AND pv."sortOrder" = 0
+            WHERE p.embedding IS NOT NULL
+            ORDER BY distance ASC
+            LIMIT ${limit}
+        `;
+        return {
+            success: true,
+            message: `Found ${(matchedProducts as any[]).length} products matching query '${query.q}' with semantic search`,
+            data: matchedProducts,
         };
     }
 

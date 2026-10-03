@@ -525,12 +525,12 @@ export class ProductsRepository {
     return this.utils.enrichMany(result);
   }
 
-  update(id: number, data: UpdateProductDto) {
+  async update(id: number, data: UpdateProductDto) {
     const { images, variants, weightG, priceIdr, stock, sku, ...productData } =
       data;
 
-    return this.prisma.$transaction(async (tx) => {
-      const product = await tx.product.update({
+    const product = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.product.update({
         where: { id },
         data: productData,
         include: PRODUCT_INCLUDE,
@@ -551,8 +551,25 @@ export class ProductsRepository {
           }),
         );
       }
-      return { ...product, images: product.images.concat(imageUpserts ?? []) };
+      return { ...updated, images: updated.images.concat(imageUpserts ?? []) };
     });
+
+    try {
+      const embed = await this.embedService.generateEmbeddingsFromProduct(product);
+      await this.prisma.$executeRaw`
+      UPDATE "Product"
+      SET embedding = ${this.embedService.embeddingArrayToString(embed)}::vector
+      WHERE id = ${id}
+    `;
+    } catch (embedError: any) {
+      this.logger.warn({
+        message: 'Embedding regeneration failed after product update',
+        productId: id,
+        error: embedError.message,
+      });
+    }
+
+    return product;
   }
 
   delete(id: number) {
@@ -574,6 +591,37 @@ export class ProductsRepository {
       data: { isActive: data.isActive },
     });
   }
+    async backfillEmbeddings() {
+    const productsWithoutEmbedding: { id: number }[] = await this.prisma.$queryRaw`
+      SELECT id FROM "Product" WHERE embedding IS NULL AND "isActive" = true
+    `;
+
+    let processed = 0;
+    let failed = 0;
+
+    for (const { id } of productsWithoutEmbedding) {
+      try {
+        const product = await this.prisma.product.findUniqueOrThrow({ where: { id } });
+        const embed = await this.embedService.generateEmbeddingsFromProduct(product);
+        await this.prisma.$executeRaw`
+          UPDATE "Product"
+          SET embedding = ${this.embedService.embeddingArrayToString(embed)}::vector
+          WHERE id = ${id}
+        `;
+        processed++;
+      } catch (err: any) {
+        this.logger.warn({
+          message: 'Embedding backfill failed for product',
+          productId: id,
+          error: err.message,
+        });
+        failed++;
+      }
+    }
+
+    return { total: productsWithoutEmbedding.length, processed, failed };
+  }
+
 
   findAllForExport() {
     return this.prisma.product.findMany({

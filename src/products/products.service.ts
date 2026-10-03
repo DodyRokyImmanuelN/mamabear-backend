@@ -388,6 +388,15 @@ export class ProductsService {
       data: { updatedCount: result.count },
     };
   }
+    async backfillEmbeddings(): Promise<ServiceResult<{ total: number; processed: number; failed: number }>> {
+    const result = await this.productsRepository.backfillEmbeddings();
+
+    return {
+      success: true,
+      message: `Backfilled embeddings for ${result.processed} of ${result.total} products (${result.failed} failed)`,
+      data: result,
+    };
+  }
 
   async exportProducts(): Promise<ServiceResult<any>> {
     const products = await this.productsRepository.findAllForExport();
