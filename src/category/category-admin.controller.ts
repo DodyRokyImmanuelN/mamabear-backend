@@ -8,7 +8,7 @@ import {
   Req,
   Put,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { CategoryService } from './category.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
@@ -28,6 +28,18 @@ export class CategoryAdminController {
     private readonly activityLogService: AdminActivityLogService,
   ) {}
 
+  @ApiOperation({ summary: 'Creates a new category'})
+  @ApiResponse({
+    status: 200,
+    description: 'Success',
+    schema: {
+      example: {
+        success: true,
+        message: `Category Jamu created successfully`,
+        data: '{ category details and images details }',
+      }
+    }
+  })
   @Post()
   async create(
     @Req() req: any,
@@ -40,6 +52,18 @@ export class CategoryAdminController {
     return result;
   }
 
+  @ApiOperation({ summary: 'Updates a category details'})
+  @ApiResponse({
+    status: 200,
+    description: 'Success',
+    schema: {
+      example: {
+        success: true,
+        message: `Category Jamu updated successfully`,
+        data: '{ category details and images details including new images }',
+      }
+    }
+  })
   @Put(':id')
   async update(
     @Req() req: any,
@@ -57,6 +81,18 @@ export class CategoryAdminController {
     return result;
   }
 
+  @ApiOperation({ summary: 'Deletes a category'})
+  @ApiResponse({
+    status: 200,
+    description: 'Success',
+    schema: {
+      example: {
+        success: true,
+        message: `Category Jamu deleted successfully`,
+        data: '{ category details and images details }',
+      }
+    }
+  })
   @Delete(':id')
   async delete(@Req() req: any, @Param('id') categoryId: number) {
     const result = await this.categoryService.deleteCategory(req.user.id, categoryId);

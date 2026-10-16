@@ -23,7 +23,7 @@ import { format } from '@fast-csv/format';
 import { AdminOrdersQueryDto } from './dto/admin-orders-query.dto';
 import { Response } from 'express';
 import { AdminActivityLogService } from '@/activity-log/admin-activity-log.service';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 
 @ApiTags('order (admin)')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -36,11 +36,37 @@ export class OrderAdminController {
     private readonly activityLogService: AdminActivityLogService,
   ) {}
 
+  @ApiOperation({summary: 'Get invoice by order id'})
+  @ApiResponse({
+    status: 200,
+    description: 'Success',
+    schema: {
+      example: {
+            invoiceNumber: `INV-SOMEDATE-SOMEORDERID`,
+            issuedAt: 'SOMEDATE',
+            OrderedItem: [{
+              productName: 'product name',
+              variantName: 'variant name',
+              quantity: 10,
+              price: '150000',
+            }],
+            ShippingAddress: 'Some Address',
+            subtotalIdr: '1500000',
+            shippingCostIdr: '75000',
+            totalIdr: '1575000',
+            PaymentMethod: 'Daun',
+            InvoicePaymentStatus: 'UNPAID',
+          }
+    }
+  })
+  @ApiResponse({status: 404, description: 'Order id not found'})
+  @ApiResponse({status: 400, description: 'Cannot generate invoice with invalid order status'})
   @Get(':id/invoice')
   getInvoice(@Req() req: any, @Param('id') id: string) {
     return this.orderService.getInvoice(req.user.sub, req.user.role, id);
   }
 
+  @ApiOperation({summary: 'Gather orders to export'})
   @Get('export')
   async exportOrders(@Res() res: Response) {
     const result = await this.orderService.exportOrders();
@@ -95,16 +121,55 @@ export class OrderAdminController {
     csvStream.end();
   }
 
+  @ApiOperation({summary: 'Gets all orders'})
+  @ApiResponse({
+    status: 200,
+    description: 'Success',
+    schema: {
+      example: {
+        success: true,
+        message: `Returned 20 orders (page 1 of 6)`,
+        data: '[{ orders details }]',
+      }
+    }
+  })
   @Get()
   findAllOrders(@Query() query: AdminOrdersQueryDto) {
     return this.orderService.findAllOrders(query);
   }
 
+  @ApiOperation({summary: 'Gets an order by id for Admin'})
+  @ApiResponse({
+    status: 200,
+    description: 'Success',
+    schema: {
+      example: {
+        success: true,
+        message: 'Order found',
+        data: '{ orders details }',
+      }
+    }
+  })
+  @ApiResponse({ status: 404, description: 'Order with that id is not found'})
   @Get(':id')
   findOrderById(@Param('id') id: string) {
     return this.orderService.getOrderByIdForAdmin(id);
   }
 
+  @ApiOperation({summary: 'Cancels an order'})
+  @ApiResponse({
+    status: 200,
+    description: 'Success',
+    schema: {
+      example: {
+        success: true,
+        message: `Order 67 cancelled`,
+        data: null,
+      }
+    }
+  })
+  @ApiResponse({ status: 404, description: 'Order with that id is not found'})
+  @ApiResponse({ status: 400, description: 'Unable to cancel order with the current status'})
   @Post(':id/cancel')
   async cancelOrder(
     @Req() req: any,
@@ -123,6 +188,19 @@ export class OrderAdminController {
     return result;
   }
 
+  @ApiOperation({summary: 'Updates an order status'})
+  @ApiResponse({
+    status: 200,
+    description: 'Success',
+    schema: {
+      example: {
+        success: true,
+        message: `Order 67 status updated to PAID`,
+        data: '{ updated order details }',
+      }
+    }
+  })
+  @ApiResponse({ status: 404, description: 'Order with that id is not found'})
   @Patch(':id/status')
   async update(
     @Req() req: any,
@@ -140,6 +218,23 @@ export class OrderAdminController {
     return result;
   }
 
+  @ApiOperation({summary: 'Updates an order tracking number'})
+  @ApiResponse({
+    status: 200,
+    description: 'Success',
+    schema: {
+      example: {
+        "success": true,
+        "statusCode": 201,
+        "message": [
+            "No message specified"
+        ],
+        "data": '{ updated order details }',
+        "timestamp": "2026-10-14T14:16:53.963Z"
+      }
+    }
+  })
+  @ApiResponse({ status: 404, description: 'Order with that id is not found'})
   @Patch(':id/tracking')
   async updateTrackingNumber(
     @Req() req: any,

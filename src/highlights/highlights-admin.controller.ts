@@ -8,7 +8,7 @@ import {
   UseGuards,
   Req,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { HighlightsService } from './highlights.service';
 import { CreateHighlightDto } from './dto/create-highlight.dto';
 import { UpdateHighlightDto } from './dto/update-highlight.dto';
@@ -28,6 +28,22 @@ export class HighlightsAdminController {
     private readonly activityLogService: AdminActivityLogService,
   ) {}
 
+  @ApiOperation({ summary: 'Creates a new highlight'})
+  @ApiResponse({
+    status: 200,
+    description: 'Success',
+    schema: {
+      example: {
+        success: true,
+        message: `Created highlight jamu-herbal`,
+        data: '{ Highlight details and product details }',
+      }
+    }
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad Request: Highlight already exist'
+  })
   @Post()
   async create(@Req() req: any, @Body() createHighlightDto: CreateHighlightDto) {
     const result = await this.highlightsService.create(createHighlightDto);
@@ -37,6 +53,22 @@ export class HighlightsAdminController {
     return result;
   }
 
+  @ApiOperation({ summary: 'Updates a highlight'})
+  @ApiResponse({
+    status: 200,
+    description: 'Success',
+    schema: {
+      example: {
+        success: true,
+        message: `Highlight jamu-herbal updated successfully`,
+        data: '{ Highlight details and product details }',
+      }
+    }
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad Request: Highlight already exist or Highlight not found'
+  })
   @Patch(':id')
   async update(
     @Req() req: any,
@@ -50,6 +82,22 @@ export class HighlightsAdminController {
     return result;
   }
 
+  @ApiOperation({ summary: 'Updates a highlight'})
+  @ApiResponse({
+    status: 200,
+    description: 'Success',
+    schema: {
+      example: {
+        success: true,
+        message: `jamu-herbal deleted successfully`,
+        data: '{ Highlight details and product details }',
+      }
+    }
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad Request: Highlight not found or Highlight has products'
+  })
   @Delete(':id')
   async remove(@Req() req: any, @Param('id') id: string) {
     const result = await this.highlightsService.remove(+id);

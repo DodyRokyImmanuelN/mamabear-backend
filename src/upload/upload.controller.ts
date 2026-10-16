@@ -19,7 +19,7 @@ import { memoryStorage } from 'multer';
 import { JwtAuthGuard } from '@/auth/guard/jwt-auth.guard';
 import { Roles } from '@/auth/decorators/roles.decorator';
 import { Role } from '@/generated/prisma';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 
 @ApiTags('upload (admin)')
 @UseGuards(JwtAuthGuard)
@@ -29,11 +29,36 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 export class UploadController {
   constructor(private readonly uploadService: UploadService) {}
 
+  @ApiOperation({summary:'Gets Cloudinary upload signature'})
+  @ApiResponse({
+    status: 200,
+    description: 'Success',
+    schema: {
+      example: {
+        success: true,
+        message: 'Upload signature generated successfully',
+        data: '{ upload signatures data }'
+      }
+    }
+  })
   @Get('signature')
   getUploadSignature() {
     return this.uploadService.getUploadSignature();
   }
 
+  @ApiOperation({summary:'Uploads a single image to Cloudinary'})
+  @ApiResponse({
+    status: 200,
+    description: 'Success',
+    schema: {
+      example: {
+        success: true,
+        message: 'Image uploaded successfully to cloudinary. Manually assign a unique sortOrder, and append the following metadata to images=[] in entities that have "images" field.',
+        data: '{ images details, "sortOrder": null }',
+      }
+    }
+  })
+  @ApiResponse({status: 400, description: 'No image attached'})
   @Post('image')
   @UseInterceptors(
     FileInterceptor('image', {
@@ -55,6 +80,19 @@ export class UploadController {
     return this.uploadService.uploadImage(file);
   }
 
+  @ApiOperation({summary:'Uploads images to Cloudinary'})
+  @ApiResponse({
+    status: 200,
+    description: 'Success',
+    schema: {
+      example: {
+        success: true,
+        message: 'Images uploaded successfully to cloudinary. Manual assign a unique sortOrder for each image, and append the following metadata to images=[] in entities that have "images" field.',
+        data: '[{ images details }]'
+      }
+    }
+  })
+  @ApiResponse({status: 400, description: 'No image attached'})
   @Post('images')
   @UseInterceptors(
     FilesInterceptor('images', 10, {
@@ -76,11 +114,34 @@ export class UploadController {
     return this.uploadService.uploadImages(files);
   }
 
+  @ApiOperation({summary:'Deletes an image from Cloudinary by id'})
+  @ApiResponse({
+    status: 200,
+    description: 'Success',
+    schema: {
+      example: {
+        success: true,
+        message: `Image with image.altText deleted successfully`,
+      }
+    }
+  })
   @Delete('image/:id')
   deleteImage(@Param('id') imageId: number) {
     return this.uploadService.deleteImage(imageId);
   }
 
+  @ApiOperation({summary:'Gets all images stored locally'})
+  @ApiResponse({
+    status: 200,
+    description: 'Success',
+    schema: {
+      example: {
+        success: true,
+        message: `No specific message.`,
+        data: '[{ images details }]'
+      }
+    }
+  })
   @Get('images')
   findAllImages() {
     return this.uploadService.findAll();

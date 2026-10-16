@@ -9,7 +9,7 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags, ApiOkResponse, ApiParam } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags, ApiOkResponse, ApiParam, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Response } from 'express';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '@/auth/guard/jwt-auth.guard';
@@ -32,17 +32,43 @@ export class AdminCustomersController {
     private readonly activityLogService: AdminActivityLogService,
   ) {}
 
+  @ApiOperation({summary: 'Exports customers data to CSV'})
   @Get('export')
   async export(@Query() query: AdminCustomersQueryDto, @Res() res: Response) {
     await this.usersService.exportCustomersToCSV(query, res);
   }
 
+  
+  @ApiOperation({summary: 'Gets all customers info'})
+  @ApiResponse({
+    status: 200,
+    description: 'Success',
+    schema: {
+      example: {
+        success: true,
+        message: `Returned 20 customers (page 1 of 6)`,
+        data: '[{ customers info }]',
+      }
+    }
+  })
   @Get()
   @ApiOkResponse({ type: AdminCustomersListResponseDto })
   findAll(@Query() query: AdminCustomersQueryDto) {
     return this.usersService.findCustomers(query);
   }
 
+  @ApiOperation({summary: 'Gets a customers info'})
+  @ApiResponse({
+    status: 200,
+    description: 'Success',
+    schema: {
+      example: {
+        success: true,
+        message: `Found customer detail for id 67`,
+        data: '{ customers info }',
+      }
+    }
+  })
   @Get(':id')
   @ApiParam({ name: 'id', required: true })
   @ApiOkResponse({ type: AdminCustomerDetailDto })
@@ -50,6 +76,18 @@ export class AdminCustomersController {
     return this.usersService.findCustomerDetail(id);
   }
 
+  @ApiOperation({summary: 'Block/Reactivates customer\'s account'})
+  @ApiResponse({
+    status: 200,
+    description: 'Success',
+    schema: {
+      example: {
+        success: true,
+        message: `Customer blocked / reactivated successfully`,
+        data: '{ customer info }',
+      }
+    }
+  })
   @Put(':id/status')
   @ApiParam({ name: 'id', required: true })
   async updateCustomerStatus(

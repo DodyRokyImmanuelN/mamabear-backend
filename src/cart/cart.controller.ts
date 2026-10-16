@@ -14,7 +14,7 @@ import {
 import { Response, Request } from 'express';
 import { CartService } from './cart.service';
 import { AddToCartDto } from './dto/add-to-cart-dto';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { UpdateCartItemDto } from './dto/update-cart-item.dto';
 import { PinoLogger } from 'pino-nestjs';
 import { OptionalJwtAuthGuard } from '@/auth/guard/optional-jwt-auth.guard';
@@ -33,6 +33,38 @@ export class CartController {
     this.logger.setContext(CartController.name);
   }
 
+  @ApiOperation({summary: 'Get cart details'})
+  @ApiResponse({
+    status: 201,
+    description: 'Success',
+    schema: {
+      example: {
+        "success": true,
+        "statusCode": 201,
+        "message": [
+            "No message specified"
+        ],
+        "data": {
+            "id": "01a13ac5-f3b0-7256-bb27-6acabd0bc5ba",
+            "userId": null,
+            "sessionId": "441a6138-3061-48d1-b3ec-dd4aee591aa5",
+            "subtotalIdr": 0,
+            "taxIdr": 0,
+            "shippingCostIdr": 0,
+            "courierName": null,
+            "courierCode": null,
+            "shippingMethod": null,
+            "orderId": null,
+            "createdAt": "2026-10-14T14:16:53.937Z",
+            "updatedAt": "2026-10-14T14:16:53.937Z",
+            "expiresAt": "2026-10-21T14:16:53.880Z",
+            "items": [],
+            "totalWeight": 0
+        },
+        "timestamp": "2026-10-14T14:16:53.963Z"
+      }
+    }
+  })
   @Get()
   async getCart(
     @GetUserId() userId: string | undefined,
@@ -81,6 +113,18 @@ export class CartController {
     }
   }
 
+  @ApiOperation({summary: 'Get cart\'s items value'})
+  @ApiResponse({
+    status: 201,
+    description: 'Success',
+    schema: {
+      example: {
+        itemCount: 0,
+        subtotal: 0,
+        total: 0,
+      }
+    }
+  })
   @Get('totals')
   async getCartTotals(
     @GetUserId() userId: string | undefined,
@@ -108,6 +152,38 @@ export class CartController {
     }
   }
 
+  @ApiOperation({summary: 'Merge guest\'s cart into user\'s cart.'})
+  @ApiResponse({
+    status: 201,
+    description: 'Success',
+    schema: {
+      example: {
+        "success": true,
+        "statusCode": 201,
+        "message": [
+            "No message specified"
+        ],
+        "data": {
+            "id": "01a13ac5-f3b0-7256-bb27-6acabd0bc5ba",
+            "userId": "some-uuid",
+            "sessionId": "441a6138-3061-48d1-b3ec-dd4aee591aa5",
+            "subtotalIdr": 0,
+            "taxIdr": 0,
+            "shippingCostIdr": 0,
+            "courierName": null,
+            "courierCode": null,
+            "shippingMethod": null,
+            "orderId": null,
+            "createdAt": "2026-10-14T14:16:53.937Z",
+            "updatedAt": "2026-10-14T14:16:53.937Z",
+            "expiresAt": "2026-10-21T14:16:53.880Z",
+            "items": [],
+            "totalWeight": 0
+        },
+        "timestamp": "2026-10-14T14:16:53.963Z"
+      }
+    }
+  })
   @Post('merge')
   async mergeCart(
     @GetUserId() userId: string | undefined,
@@ -149,6 +225,24 @@ export class CartController {
     }
   }
 
+  @ApiOperation({summary: 'Validate cart for checkout.'})
+  @ApiResponse({
+    status: 201,
+    description: 'Success',
+    schema: {
+      example: { valid: true }
+    }
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation failed',
+    schema: {
+      example: {
+        message: 'Cart validation failed',
+        issues: 'The issue',
+      }
+    }
+  })
   @Post('validate')
   async validateCart(
     @GetUserId() userId: string | undefined,
@@ -178,6 +272,47 @@ export class CartController {
     }
   }
 
+  @ApiOperation({summary: 'Add item to cart.'})
+  @ApiResponse({
+    status: 201,
+    description: 'Success',
+    schema: {
+      example: {
+        "success": true,
+        "statusCode": 201,
+        "message": [
+            "No message specified"
+        ],
+        "data": {
+            "id": "01a13ac5-f3b0-7256-bb27-6acabd0bc5ba",
+            "userId": "some-uuid",
+            "sessionId": "441a6138-3061-48d1-b3ec-dd4aee591aa5",
+            "subtotalIdr": 0,
+            "taxIdr": 0,
+            "shippingCostIdr": 0,
+            "courierName": null,
+            "courierCode": null,
+            "shippingMethod": null,
+            "orderId": null,
+            "createdAt": "2026-10-14T14:16:53.937Z",
+            "updatedAt": "2026-10-14T14:16:53.937Z",
+            "expiresAt": "2026-10-21T14:16:53.880Z",
+            "items": [],
+            "totalWeight": 0
+        },
+        "timestamp": "2026-10-14T14:16:53.963Z",
+        createdSessionId: 'cart session id'
+      }
+    }
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Variant not found'
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Product unavailable or Variant mismatch with product or Quantity at 0 or Insufficient stock'
+  })
   @Post('items')
   async addToCart(
     @GetUserId() userId: string | undefined,
@@ -220,6 +355,40 @@ export class CartController {
     }
   }
 
+  @ApiOperation({summary: 'Updates item quantity in a cart.'})
+  @ApiResponse({
+    status: 201,
+    description: 'Success',
+    schema: {
+      example: {
+        "success": true,
+        "statusCode": 201,
+        "message": [
+            "No message specified"
+        ],
+        "data": {
+            "id": "01a13ac5-f3b0-7256-bb27-6acabd0bc5ba",
+            "userId": "some-uuid",
+            "sessionId": "441a6138-3061-48d1-b3ec-dd4aee591aa5",
+            "subtotalIdr": 0,
+            "taxIdr": 0,
+            "shippingCostIdr": 0,
+            "courierName": null,
+            "courierCode": null,
+            "shippingMethod": null,
+            "orderId": null,
+            "createdAt": "2026-10-14T14:16:53.937Z",
+            "updatedAt": "2026-10-14T14:16:53.937Z",
+            "expiresAt": "2026-10-21T14:16:53.880Z",
+            "items": ['some items details'],
+            "totalWeight": 0
+        },
+        "timestamp": "2026-10-14T14:16:53.963Z",
+      }
+    }
+  })
+  @ApiResponse({ status:404, description: 'Item not found'})
+  @ApiResponse({ status:400, description: 'Bad Request'})
   @Patch('items/:id')
   async updateItem(
     @Param('id') itemId: string,
@@ -254,6 +423,40 @@ export class CartController {
     }
   }
 
+  @ApiOperation({summary: 'Removes an item from a cart.'})
+  @ApiResponse({
+    status: 201,
+    description: 'Success',
+    schema: {
+      example: {
+        "success": true,
+        "statusCode": 201,
+        "message": [
+            "No message specified"
+        ],
+        "data": {
+            "id": "01a13ac5-f3b0-7256-bb27-6acabd0bc5ba",
+            "userId": "some-uuid",
+            "sessionId": "441a6138-3061-48d1-b3ec-dd4aee591aa5",
+            "subtotalIdr": 0,
+            "taxIdr": 0,
+            "shippingCostIdr": 0,
+            "courierName": null,
+            "courierCode": null,
+            "shippingMethod": null,
+            "orderId": null,
+            "createdAt": "2026-10-14T14:16:53.937Z",
+            "updatedAt": "2026-10-14T14:16:53.937Z",
+            "expiresAt": "2026-10-21T14:16:53.880Z",
+            "items": ['some items details'],
+            "totalWeight": 0
+        },
+        "timestamp": "2026-10-14T14:16:53.963Z",
+      }
+    }
+  })
+  @ApiResponse({ status:404, description: 'Item not found'})
+  @ApiResponse({ status:400, description: 'Bad Request'})
   @Delete('items/:id')
   async removeItem(
     @Param('id') itemId: string,
@@ -285,16 +488,113 @@ export class CartController {
       throw error;
     }
   }
+
+  @ApiOperation({summary: 'Clear a cart courier/shipment information.'})
+  @ApiResponse({
+    status: 201,
+    description: 'Success',
+    schema: {
+      example: {
+        "success": true,
+        "statusCode": 201,
+        "message": [
+            "No message specified"
+        ],
+        "data": {
+            "id": "01a13ac5-f3b0-7256-bb27-6acabd0bc5ba",
+            "userId": "some-uuid",
+            "sessionId": "441a6138-3061-48d1-b3ec-dd4aee591aa5",
+            "subtotalIdr": 0,
+            "taxIdr": 0,
+            "shippingCostIdr": 0, // becomes 0
+            "courierName": null, // becomes null
+            "courierCode": null, // becomes null
+            "shippingMethod": null, // becomes null
+            "orderId": null,
+            "createdAt": "2026-10-14T14:16:53.937Z",
+            "updatedAt": "2026-10-14T14:16:53.937Z",
+            "expiresAt": "2026-10-21T14:16:53.880Z",
+            "items": ['some items details'],
+            "totalWeight": 0
+        },
+        "timestamp": "2026-10-14T14:16:53.963Z",
+      }
+    }
+  })
   @Delete(':id/courier')
   async clearCartCourierInformation(@Param('id') id: string) {
       return this.cartService.clearCourierInformation(id);
   }
 
+  @ApiOperation({summary: 'Updates a cart courier/shipment information.'})
+  @ApiResponse({
+    status: 201,
+    description: 'Success',
+    schema: {
+      example: {
+        "success": true,
+        "statusCode": 201,
+        "message": [
+            "No message specified"
+        ],
+        "data": {
+            "id": "01a13ac5-f3b0-7256-bb27-6acabd0bc5ba",
+            "userId": "some-uuid",
+            "sessionId": "441a6138-3061-48d1-b3ec-dd4aee591aa5",
+            "subtotalIdr": 0,
+            "taxIdr": 0,
+            "shippingCostIdr": 12000,
+            "courierName": 'Tung Tung',
+            "courierCode": '67',
+            "shippingMethod": 'Telepati',
+            "orderId": null,
+            "createdAt": "2026-10-14T14:16:53.937Z",
+            "updatedAt": "2026-10-14T14:16:53.937Z",
+            "expiresAt": "2026-10-21T14:16:53.880Z",
+            "items": ['some items details'],
+            "totalWeight": 0
+        },
+        "timestamp": "2026-10-14T14:16:53.963Z",
+      }
+    }
+  })
   @Patch(':id/courier')
   async updateCourierInformation(@Param('id') id: string, @Body() dto: PatchCourierDto) {
       return this.cartService.updateCourierInformation(id, dto);
   }
 
+  @ApiOperation({summary: 'Clear items from a cart.'})
+  @ApiResponse({
+    status: 201,
+    description: 'Success',
+    schema: {
+      example: {
+        "success": true,
+        "statusCode": 201,
+        "message": [
+            "No message specified"
+        ],
+        "data": {
+            "id": "01a13ac5-f3b0-7256-bb27-6acabd0bc5ba",
+            "userId": "some-uuid",
+            "sessionId": "441a6138-3061-48d1-b3ec-dd4aee591aa5",
+            "subtotalIdr": 0,
+            "taxIdr": 0,
+            "shippingCostIdr": 0,
+            "courierName": null,
+            "courierCode": null,
+            "shippingMethod": null,
+            "orderId": null,
+            "createdAt": "2026-10-14T14:16:53.937Z",
+            "updatedAt": "2026-10-14T14:16:53.937Z",
+            "expiresAt": "2026-10-21T14:16:53.880Z",
+            "items": [],
+            "totalWeight": 0
+        },
+        "timestamp": "2026-10-14T14:16:53.963Z",
+      }
+    }
+  })
   @Delete()
   async clearCart(
     @GetUserId() userId: string | undefined,
