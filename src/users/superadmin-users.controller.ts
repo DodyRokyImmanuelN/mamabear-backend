@@ -12,7 +12,7 @@ import {
   Req,
   ForbiddenException,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -35,6 +35,18 @@ export class SuperAdminUsersController {
     private readonly activityLogService: AdminActivityLogService,
   ) {}
 
+  @ApiOperation({summary: 'Creates a new user/account'})
+  @ApiResponse({
+    status: 200,
+    description: 'Success',
+    schema: {
+      example: {
+        success: true,
+        message: 'User created successfully',
+        data: '{ account details }',
+      }
+    }
+  })
   @Post()
   async create(@Req() req: any, @Body() createUserDto: CreateUserDto) {
     const result = await this.usersService.create(createUserDto);
@@ -44,6 +56,18 @@ export class SuperAdminUsersController {
     return result;
   }
 
+  @ApiOperation({summary: 'Deletes an existing user/account by id'})
+  @ApiResponse({
+    status: 200,
+    description: 'Success',
+    schema: {
+      example: {
+        success: true,
+        message: 'User deleted successfully',
+        data: '{ account details }',
+      }
+    }
+  })
   @Delete(':id')
   async remove(@Req() req: any, @Param('id') id: string) {
     if(req.user.sub === id) {
@@ -56,6 +80,18 @@ export class SuperAdminUsersController {
     return result;
   }
 
+  @ApiOperation({summary: 'Updates a user\'s role by id'})
+  @ApiResponse({
+    status: 200,
+    description: 'Success',
+    schema: {
+      example: {
+        success: true,
+        message: `User role updated to MEGAADMIN`,
+        data: '{ account details }',
+      }
+    }
+  })
   @Put(':id/role')
   async updateRole(
     @Req() req: any,
@@ -72,6 +108,18 @@ export class SuperAdminUsersController {
     return result;
   }
 
+  @ApiOperation({summary: 'Block/Reactivates admin/user\'s account'})
+  @ApiResponse({
+    status: 200,
+    description: 'Success',
+    schema: {
+      example: {
+        success: true,
+        message: `User blocked / reactivated successfully`,
+        data: '{ account details }',
+      }
+    }
+  })
   @Put(':id/status')
   async updateStatus(
     @Req() req: any,
