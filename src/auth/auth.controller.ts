@@ -9,7 +9,7 @@ import {
   UseGuards,
   Res,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { LoginUserDto } from './dto/login.dto';
 import { RegisterUserDto } from './dto/register.dto';
@@ -28,6 +28,27 @@ import { Request, Response } from 'express';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  @ApiOperation({ summary: 'Get user public info' })
+  @ApiResponse({
+      status: 201,
+      description: 'Success',
+      schema: {
+        example: {
+          "success": true,
+          "statusCode": 200,
+          "message": [
+              "No message specified"
+          ],
+          "data": {
+              "sub": "a61bd098-9125-4d52-8eac-88386fe0944e",
+              "name": "Dewi Lestari",
+              "email": "dewi.lestari@email.com",
+              "role": "USER"
+          },
+          "timestamp": "2026-10-14T13:32:50.419Z"
+      }
+      }
+  })
   @Get('me')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JwtAuthGuard')
@@ -35,6 +56,29 @@ export class AuthController {
       return req.user;
   }
 
+  @ApiOperation({ summary: 'Logs in user' })
+  @ApiResponse({
+      status: 201,
+      description: 'Success',
+      schema: {
+        example: {
+          "success": true,
+          "statusCode": 201,
+          "message": [
+              "Login successful"
+          ],
+          "data": {
+              "accessToken": "some.access.token",
+              "refreshToken": "some.refresh.token"
+          },
+          "timestamp": "2026-10-14T13:31:23.796Z"
+        }
+      }
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid email/password, or email is not verified, or account is blocked'
+  })
   @Throttle({
     default: {
       limit: 50,
@@ -46,6 +90,22 @@ export class AuthController {
     return this.authService.login(dto, res);
   }
 
+  @ApiOperation({ summary: 'Registers user' })
+  @ApiResponse({
+      status: 201,
+      description: 'Success',
+      schema: {
+        example: {
+          success: true,
+          message: `Register success, check your email to verify`,
+          data: null
+        }
+      }
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Email already exists.'
+  })
   @Throttle({
     default: {
       limit: 50,
@@ -57,6 +117,22 @@ export class AuthController {
     return this.authService.register(dto);
   }
 
+  @ApiOperation({ summary: 'Logs out user' })
+  @ApiResponse({
+      status: 201,
+      description: 'Success',
+      schema: {
+        example: {
+          success: true,
+          message: `Logout success`,
+          data: null,
+        }
+      }
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'User not found.'
+  })
   @UseGuards(JwtAuthGuard)
   @Post('/logout')
   @ApiBearerAuth('JwtAuthGuard')
@@ -64,6 +140,22 @@ export class AuthController {
     return this.authService.logout(req.sub, res);
   }
 
+  @ApiOperation({ summary: 'Reissue auth token' })
+  @ApiResponse({
+      status: 201,
+      description: 'Success',
+      schema: {
+        example: {
+          success: true,
+          message: `Token refreshed successfully`,
+          data: { accessToken: 'newAccessToken', refreshToken: 'newRefreshToken' },
+        }
+      }
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'User not found or Refresh token not found or Invalid old refresh token or Refresh token expired.'
+  })
   @Throttle({
     default: {
       limit: 50,
@@ -78,6 +170,22 @@ export class AuthController {
     return this.authService.refreshToken(refreshToken);
   }
 
+  @ApiOperation({ summary: 'Issue forgot password' })
+  @ApiResponse({
+      status: 201,
+      description: 'Success',
+      schema: {
+        example: {
+          success: true,
+          message: `Check your email to reset password`,
+          data: null,
+        }
+      }
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'User not found.'
+  })
   @Throttle({
     default: {
       limit: 50,
@@ -89,6 +197,22 @@ export class AuthController {
     return this.authService.forgotPassword(dto);
   }
 
+  @ApiOperation({ summary: 'Reset user\'s password' })
+  @ApiResponse({
+      status: 201,
+      description: 'Success',
+      schema: {
+        example: {
+          success: true,
+          message: `Password reset success`,
+          data: null,
+        }
+      }
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid token or reset token expired.'
+  })
   @Throttle({
     default: {
       limit: 50,
@@ -100,6 +224,22 @@ export class AuthController {
     return this.authService.resetPassword(token, dto);
   }
 
+  @ApiOperation({ summary: 'Verify account' })
+  @ApiResponse({
+      status: 201,
+      description: 'Success',
+      schema: {
+        example: {
+          success: true,
+          message: `Email verified successfully`,
+          data: null,
+        }
+      }
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid token or reset token expired.'
+  })
   @Throttle({
     default: {
       limit: 50,
